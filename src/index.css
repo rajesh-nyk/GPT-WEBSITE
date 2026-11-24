@@ -1,0 +1,1914 @@
+@import "tailwindcss";
+@import "lenis/dist/lenis.css";
+
+@theme static {
+  /* Palette — sindoor red, temple gold, lamp-black */
+  --color-ink: #0a0a0c;
+  --color-oxblood: #2a0408;
+  --color-sindoor: #7a0f18;
+  --color-gold: #d9a441;
+  --color-gold-light: #f5deaa;
+  --color-marigold: #f58a07;
+  --color-focus: #f5deaa;
+
+  /* Self-hosted (fontsource), preloaded by the loading screen */
+  /* Capitals for names, labels & headings: a high-contrast Didone (Bodoni Moda, optical
+     sizes) — editorial and couture rather than the stock "wedding Trajan" look */
+  --font-inscription: "Bodoni Moda Variable", "Bodoni Moda", "Didot", Georgia, serif;
+  /* Calligraphic serif for flourishes (the ampersand) and body copy */
+  --font-display: "Cormorant Garamond Variable", "Cormorant Garamond", Georgia, serif;
+  --font-odia: "Noto Serif Oriya Variable", "Noto Serif Oriya", serif;
+}
+
+/* ---- Design tokens (step 1 of the Awwwards plan, 22 Nov 2026) ----------------------
+   One named home for every repeated colour and easing in this file. Values are exactly
+   the ones the site already used, so nothing looks different. Use these in new CSS;
+   don't write raw hex or cubic-bezier() again.
+   Colours with transparency: rgb(var(--rgb-…) / 0.5). 3D scene colours live in the TSX. */
+:root {
+  /* Solid colours (ink, oxblood, sindoor, gold, gold-light and marigold are in @theme) */
+  --color-parchment: #f3dcaa; /* body + label text on dark */
+  --color-ivory: #fbefcf; /* brightest gold highlight */
+  --color-moon: #ffeea0; /* page 3 moonlit blossom gold */
+  --color-honey: #e9be6a;
+  --color-saffron: #f5c453;
+  --color-kumkum: #b3122b; /* Hata Ganthi thread */
+
+  /* Same colours as channels, for rgb(var(--rgb-…) / alpha) */
+  --rgb-gold-glow: 226 178 86; /* soft gold: rules, labels, glows */
+  --rgb-gold-light: 245 222 170; /* = --color-gold-light */
+  --rgb-moon: 255 238 160; /* = --color-moon */
+  --rgb-amber: 233 168 74;
+  --rgb-honey: 233 190 106; /* = --color-honey */
+  --rgb-saffron: 245 196 83; /* = --color-saffron */
+  --rgb-black: 0 0 0;
+
+  /* Motion */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1); /* entrances, reveals (main curve) */
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1); /* softer fades */
+  --ease-in-out-sine: cubic-bezier(0.65, 0, 0.35, 1); /* loops, back-and-forth */
+
+  /* Type scale (step 2, approved 22 Nov 2026). Grows smoothly from phone to laptop.
+     The hero keeps its own sizes (fitted to the wheel); page 2's mantra keeps its own. */
+  --text-display: clamp(3rem, 8vw, 6.4rem); /* big Odia words that open a chapter */
+  --text-title: clamp(2.2rem, 5.4vw, 4.4rem); /* chapter titles */
+  --text-subtitle: clamp(1.6rem, 3vw, 2.6rem); /* story lines, dates, big quotes */
+  --text-lead: clamp(1.3rem, 2.2vw, 1.8rem); /* short paragraphs, names, menu items */
+  --text-body: clamp(1.05rem, 1.6vw, 1.3rem); /* longer text, facts, footer */
+  --text-caption: 0.75rem; /* labels, kickers, numbers: 12px floor */
+}
+
+html {
+  background: var(--color-ink);
+  color: var(--color-gold-light);
+}
+
+/* Text stays selectable everywhere. Opt out only on specific decorative, non-text
+   elements with Tailwind's `select-none` — never on html/body/*. */
+
+/* Visible focus for keyboard users on every interactive element.
+   Two-tone ring (light outline + dark halo) stays visible on both dark and light surfaces. */
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 5px rgb(var(--rgb-black) / 0.85);
+}
+
+/* Targets of skip links / in-page anchors receive programmatic focus (tabindex=-1);
+   they aren't controls, so no ring. */
+[tabindex='-1']:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+/* ---- Hero -------------------------------------------------------------------------- */
+
+/* One vertical flow — wheel space, names, ornament, Odia line, then the scroll cue
+   pushed to the bottom — so nothing can ever overlap, whatever the window shape.
+   The spacer matches the 3D layout (hero/layout.ts → --l-* / --p-* custom properties;
+   cq units = % of the hero), plus room to fade before the rim reaches the text when
+   scrolling (+10px covers the wheel's float). */
+.hero {
+  container: hero / size;
+  /* Page 1: no text highlight on double-click (Rajesh, 22 Nov 2026). */
+  -webkit-user-select: none;
+  user-select: none;
+}
+.hero-spacer {
+  flex: none;
+  height: calc(
+    var(--l-cy) * 100cqh + min(var(--l-d) * 100cqh, var(--l-dw) * 100cqw) / 2 + 5.5cqh + 10px
+  );
+}
+@container hero (max-aspect-ratio: 4/5) {
+  .hero-spacer {
+    height: calc(
+      var(--p-cy) * 100cqh + min(var(--p-d) * 100cqh, var(--p-dw) * 100cqw) / 2 + 5.5cqh + 10px
+    );
+  }
+}
+.hero-copy {
+  flex: none;
+  /* Guaranteed breathing room above the scroll cue (it takes whatever is left). */
+  margin-bottom: clamp(1.25rem, 3.5cqh, 2.5rem);
+}
+.hero-cue {
+  flex: none;
+  margin-top: auto;
+  margin-bottom: max(1.25rem, env(safe-area-inset-bottom));
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  font-size: var(--text-caption); /* 12px floor: tracked caps stay legible on phones */
+  letter-spacing: 0.4em;
+  color: rgb(var(--rgb-gold-light) / 0.9);
+  text-transform: uppercase;
+}
+
+/* Names: drawn by the TechText canvas (.hero-tech-names below); the real <h1> is
+   visually hidden. Old HTML-names styles (gradient text) removed 22 Nov 2026, unused. */
+/* Phones / tall screens: one line sits higher than the old stacked names, so give the
+   wheel's rim extra clearance (text never touches the wheel). */
+@container hero (max-aspect-ratio: 4/5) {
+  .hero-tech-names {
+    margin-top: 3.5cqh;
+  }
+}
+/* TechText names (hero/TechNames.tsx, locked 22 Nov 2026): a canvas box sized to the heading's
+   own font-size, so it sits exactly where the HTML names sit. */
+.hero-tech-names {
+  /* Same size the HTML names used to have. */
+  font-size: clamp(1.8rem, min(5.6cqw, 7.6cqh), 4.9rem);
+  width: min(88vw, 15em);
+  height: 1.6em;
+  filter: drop-shadow(0 1px 18px rgb(var(--rgb-amber) / 0.22));
+}
+
+.hero-ornament {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: clamp(1rem, 2.6cqh, 1.6rem);
+}
+.hero-ornament__rule {
+  height: 1px;
+  width: clamp(2.5rem, 7cqw, 6rem);
+  background: linear-gradient(to right, transparent, rgb(var(--rgb-gold-glow) / 0.9));
+}
+.hero-ornament__rule--r {
+  background: linear-gradient(to left, transparent, rgb(var(--rgb-gold-glow) / 0.9));
+}
+.hero-ornament__gem {
+  width: 6px;
+  height: 6px;
+  transform: rotate(45deg);
+  background: rgb(217 164 65 / 0.85);
+}
+
+/* Odia names — lighter than the English so the hierarchy reads; spaced for calm. */
+.hero-odia {
+  margin-top: clamp(0.75rem, 2cqh, 1.25rem);
+  font-size: clamp(1rem, min(2.2cqw, 2.9cqh), 1.45rem);
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  color: rgb(var(--rgb-gold-light) / 0.72);
+}
+
+/* Place & year — the quiet fact under the names. */
+.hero-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.9em;
+  margin-top: clamp(0.6rem, 1.6cqh, 1rem);
+  font-size: clamp(0.75rem, min(1.2cqw, 1.6cqh), 0.875rem); /* never under 12px */
+  font-weight: 480;
+  letter-spacing: 0.36em;
+  text-transform: uppercase;
+  color: rgb(234 192 108 / 0.95); /* ≥ 4.5:1 even over the brightest glow */
+  padding-left: 0.36em; /* optical centring of the tracked line */
+}
+.hero-meta__dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgb(var(--rgb-gold-glow) / 0.7);
+}
+
+/* Load-in: opacity + transform only (compositor), staggered with inline animation-delay.
+   Starts while the loading screen slides away. */
+.hero-reveal {
+  animation: hero-reveal 1.8s var(--ease-out-expo) both;
+}
+@keyframes hero-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+}
+
+/* Scroll cue: a bead of light running down a gold thread, label breathing with it. */
+.scroll-dot {
+  animation: scroll-dot 2.4s var(--ease-in-out-sine) infinite;
+}
+@keyframes scroll-dot {
+  0% { transform: translateY(-100%); opacity: 0; }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { transform: translateY(340%); opacity: 0; }
+}
+.scroll-label {
+  animation: scroll-label 2.4s ease-in-out infinite;
+}
+@keyframes scroll-label {
+  0%, 100% { opacity: 0.78; } /* breathes, but never below 4.5:1 */
+  50% { opacity: 1; }
+}
+
+/* ---- Ganesha blessing -------------------------------------------------------------- */
+
+/* Layout. Narrow screens (default): the invocation, centred over the golden nebula
+   before Ganesha forms (he then fills the frame, so there's no free space for text). */
+.blessing-copy {
+  position: absolute;
+  inset: 0;
+  padding: 0 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  text-align: center;
+}
+.blessing-flank {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.7rem;
+}
+.blessing-flank--latin .blessing-rule {
+  display: none; /* one rule between the lines is enough when stacked */
+}
+.blessing-odia {
+  font-size: clamp(1.55rem, 6.4vw, 2.4rem);
+  font-weight: 450;
+  line-height: 1.25;
+  letter-spacing: 0.04em;
+  color: var(--color-gold-light);
+  text-shadow: 0 0 22px rgb(var(--rgb-amber) / 0.25);
+}
+.blessing-latin {
+  font-size: clamp(0.75rem, 2.6vw, 0.95rem);
+  font-weight: 450;
+  letter-spacing: 0.32em;
+  margin-right: -0.32em; /* optical centring of tracked caps */
+  text-transform: uppercase;
+  color: rgb(var(--rgb-gold-glow) / 0.88);
+}
+.blessing-rule {
+  display: block;
+  width: 3rem;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgb(var(--rgb-gold-glow) / 0.85), transparent);
+}
+
+/* Wide screens: inscriptions flank the figure, vertically at his heart. */
+@media (min-aspect-ratio: 5/4) {
+  .blessing-copy {
+    inset: 0;
+    height: auto;
+    padding: 0;
+    display: block;
+  }
+  .blessing-flank {
+    --clear: max(var(--ganesha-half-w, 22svh), var(--halo-r, 28svh));
+    position: absolute;
+    top: 47%;
+    translate: 0 -50%;
+    width: calc(50% - var(--clear) - 7vw);
+    gap: 1rem;
+  }
+  .blessing-flank--odia {
+    right: calc(50% + var(--clear) + 3.5vw);
+    align-items: flex-end;
+    text-align: right;
+  }
+  .blessing-flank--latin {
+    left: calc(50% + var(--clear) + 3.5vw);
+    align-items: flex-start;
+    text-align: left;
+  }
+  .blessing-flank--latin .blessing-rule {
+    display: block;
+  }
+  .blessing-odia {
+    font-size: clamp(1.7rem, 2.5vw, 2.9rem);
+  }
+  .blessing-latin {
+    font-size: clamp(0.82rem, 1.1vw, 1.15rem);
+    margin-right: 0;
+  }
+  .blessing-rule {
+    width: clamp(3rem, 6vw, 6.5rem);
+  }
+  .blessing-flank--odia .blessing-rule {
+    background: linear-gradient(to left, rgb(var(--rgb-gold-glow) / 0.85), transparent);
+  }
+  .blessing-flank--latin .blessing-rule {
+    background: linear-gradient(to right, rgb(var(--rgb-gold-glow) / 0.85), transparent);
+  }
+}
+
+/* Invocation on a 3D cylinder (CylinderMantra). The stage's perspective and the wheel's
+   depth are set in JS from the font size, so the curve scales with the text. */
+.cyl-veil {
+  /* Fixed to the screen, so the blur never travels up with the scrolling page. */
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: rgb(var(--rgb-black) / 0.18);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  will-change: opacity;
+}
+.cyl-stage {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.cyl-wheel {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+}
+.cyl-line,
+.cyl-flat .cyl-line {
+  display: block;
+  /* Phones: shrinks to keep ~6% margin each side (the Latin line is ~14.6em wide). */
+  font-size: clamp(1rem, min(5.9vw, 7.5svh), 5rem);
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-align: center;
+  backface-visibility: hidden;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 18px rgb(255 190 70 / 0.25));
+}
+.cyl-wheel .cyl-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  margin-top: -0.55em;
+}
+.cyl-line--odia {
+  text-transform: none;
+  font-weight: 600;
+}
+.cyl-flat {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4em;
+}
+
+/* Mantra: fades and rises softly once the figure is mostly formed; reverses gracefully
+   when scrolling back up. Opacity + transform only. */
+.blessing-line {
+  opacity: 0;
+  transform: translateY(16px);
+  transition:
+    opacity 1.4s var(--ease-out-quint),
+    transform 1.6s var(--ease-out-quint);
+}
+.blessing-copy[data-shown='true'] .blessing-line {
+  opacity: 1;
+  transform: none;
+}
+/* Leaving is quicker than arriving, so it clears before the page carries it upward. */
+.blessing-copy:not([data-shown='true']) .blessing-line {
+  transition-duration: 0.6s;
+  transition-delay: 0s !important;
+}
+.blessing-copy .blessing-line:first-child {
+  filter: drop-shadow(0 0 18px rgb(var(--rgb-amber) / 0.22));
+}
+
+/* ---- Gold cursor ------------------------------------------------------------------- */
+
+/* Hide the system cursor only on mouse/trackpad devices once the gold ring is mounted. */
+@media (hover: hover) and (pointer: fine) {
+  html.has-gold-cursor,
+  html.has-gold-cursor * {
+    cursor: none !important;
+  }
+}
+/* Windows High Contrast etc.: keep the system cursor, it's the user's choice. */
+@media (forced-colors: active) {
+  html.has-gold-cursor,
+  html.has-gold-cursor * {
+    cursor: auto !important;
+  }
+  .gold-cursor {
+    display: none;
+  }
+}
+
+.gold-cursor {
+  --ring: 30px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 2147483647;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  will-change: transform;
+}
+.gold-cursor[data-visible='true'] {
+  opacity: 1;
+}
+
+/* Every layer is centred on the hotspot and only animates transform/opacity. */
+.gold-cursor > span {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: 50%;
+  translate: -50% -50%;
+  transition:
+    transform 0.55s var(--ease-out-quint),
+    opacity 0.55s var(--ease-out-quint);
+}
+
+/* The ring: a hairline of brushed metallic gold (conic gradient masked to a 1.25px band). */
+.gold-cursor__ring {
+  width: var(--ring);
+  height: var(--ring);
+  background: conic-gradient(
+    from 215deg,
+    var(--color-saffron),
+    #fff1c4 12%,
+    #d39b36 30%,
+    var(--color-saffron) 48%,
+    #ffe7a3 64%,
+    #b8822a 82%,
+    var(--color-saffron)
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 1.25px), #000 calc(100% - 1px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 1.25px), #000 calc(100% - 1px));
+}
+
+/* A faint dark hairline hugging the ring on both sides. Invisible on the dark page, but
+   it keeps the gold ring legible over the gold wheel (gold-on-gold would vanish). */
+.gold-cursor__edge {
+  width: calc(var(--ring) + 2.5px);
+  height: calc(var(--ring) + 2.5px);
+  background: rgb(10 10 12 / 0.6);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3.75px), #000 calc(100% - 3.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3.75px), #000 calc(100% - 3.5px));
+}
+
+/* Soft outer glow, and a warmer, stronger one cross-faded in on hover. */
+.gold-cursor__glow {
+  width: calc(var(--ring) * 1.9);
+  height: calc(var(--ring) * 1.9);
+  background: radial-gradient(
+    closest-side,
+    transparent 46%,
+    rgb(var(--rgb-saffron) / 0.22) 54%,
+    rgb(var(--rgb-saffron) / 0.08) 68%,
+    transparent 100%
+  );
+}
+.gold-cursor__glow::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    rgb(255 170 60 / 0.1) 30%,
+    rgb(255 176 64 / 0.42) 52%,
+    rgb(255 150 40 / 0.14) 70%,
+    transparent 100%
+  );
+  opacity: 0;
+  transition: opacity 0.55s var(--ease-out-quint);
+}
+
+.gold-cursor[data-hover='true'] .gold-cursor__ring,
+.gold-cursor[data-hover='true'] .gold-cursor__edge {
+  transform: scale(0.74);
+}
+.gold-cursor[data-hover='true'] .gold-cursor__glow {
+  transform: scale(0.82);
+}
+.gold-cursor[data-hover='true'] .gold-cursor__glow::after {
+  opacity: 1;
+}
+.gold-cursor[data-down='true'] .gold-cursor__ring,
+.gold-cursor[data-down='true'] .gold-cursor__edge {
+  transform: scale(0.62);
+}
+
+/* Reduced motion: no glow, no easing — a plain, precise ring. */
+.gold-cursor[data-reduced='true'] .gold-cursor__glow {
+  display: none;
+}
+
+/* Reduced motion: CSS transitions/animations finish instantly and skip their delays
+   (they still fire end events, so JS waiting on transitionend keeps working). JS-driven
+   motion is handled by gsap.matchMedia (lib/gsap.ts), useMotionFrame (3D), MotionConfig
+   (framer) and Lenis being disabled (LenisProvider). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---- Loading screen: the wheel drawn in a single gold line ----------------------------- */
+.loader {
+  container-type: size;
+  transition: opacity 1.1s var(--ease-in-out-sine);
+}
+.loader[data-exit] {
+  opacity: 0;
+}
+.loader-wheel {
+  position: absolute;
+  left: 50%;
+  top: calc(0.365 * 100cqh);
+  width: min(0.44 * 100cqh, 0.78 * 100cqw);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  overflow: visible;
+  transition: transform 1.1s var(--ease-out-expo), filter 1.1s;
+}
+.loader[data-exit] .loader-wheel {
+  transform: translate(-50%, -50%) scale(1.03);
+  filter: drop-shadow(0 0 14px rgb(255 190 90 / 0.6));
+}
+@container (max-aspect-ratio: 4/5) {
+  .loader-wheel {
+    top: calc(0.34 * 100cqh);
+    width: min(0.39 * 100cqh, 0.86 * 100cqw);
+  }
+}
+.loader-wheel circle,
+.loader-wheel line {
+  fill: none;
+  stroke-width: 0.32; /* ≈1 device px at the wheel's size; not non-scaling-stroke —
+                         that breaks pathLength-based dashes in Chromium */
+}
+.loader-track {
+  stroke: rgb(var(--rgb-gold-glow) / 0.12);
+}
+.loader-rim {
+  stroke: var(--color-honey);
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+.loader-spoke {
+  stroke: var(--color-honey);
+  opacity: 0.1;
+  transition: opacity 0.6s ease-out;
+}
+.loader-spoke.is-lit {
+  opacity: 0.75;
+}
+.loader-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(0.365 * 100cqh + min(0.44 * 100cqh, 0.78 * 100cqw) / 2 + 5.5cqh);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.9rem;
+}
+@container (max-aspect-ratio: 4/5) {
+  .loader-caption {
+    top: calc(0.34 * 100cqh + min(0.39 * 100cqh, 0.86 * 100cqw) / 2 + 5.5cqh);
+  }
+}
+.loader-odia {
+  font-size: clamp(1rem, 2.4cqh, 1.35rem);
+  letter-spacing: 0.08em;
+  color: rgb(var(--rgb-gold-light) / 0.8);
+}
+.loader-count {
+  font-size: var(--text-caption);
+  letter-spacing: 0.5em;
+  padding-left: 0.5em;
+  color: rgb(var(--rgb-gold-glow) / 0.6);
+  font-variant-numeric: tabular-nums;
+}
+@media (prefers-reduced-motion: reduce) {
+  .loader,
+  .loader-wheel {
+    transition-duration: 0.2s;
+  }
+}
+
+/* ======================================================================================
+   CHAPTERS 3–8
+   One content column that always keeps clear of the watermark wheel: on wide screens the
+   half-wheel at the left edge (radius = min(52.5svh, 47.5vw), see world/wheelPath.ts) —
+   on portrait the quarter-wheel in the corner, which text simply slips behind.
+   ====================================================================================== */
+.chapter {
+  --mark-r: min(52.5svh, 47.5vw);
+  position: relative;
+  z-index: 10;
+  padding: clamp(6rem, 16svh, 10rem) 1.4rem;
+  outline: none;
+}
+@media (min-aspect-ratio: 5/4) {
+  .chapter {
+    padding-left: max(calc(var(--mark-r) + 5vw), 8vw);
+    padding-right: 7vw;
+  }
+}
+
+/* Reveal: opacity + transform only, once. */
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(26px);
+  transition:
+    opacity 1.2s var(--ease-out-expo),
+    transform 1.2s var(--ease-out-expo);
+}
+[data-reveal][data-in='true'] {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+.ch-kicker {
+  font-size: var(--text-caption);
+  letter-spacing: 0.36em;
+  text-transform: uppercase;
+  color: rgb(var(--rgb-gold-glow) / 0.85);
+}
+.ch-head {
+  max-width: 44rem;
+  margin-bottom: clamp(3rem, 9svh, 6rem);
+}
+.ch-title {
+  margin-top: 0.9rem;
+  font-size: var(--text-title);
+  font-weight: 420;
+  line-height: 1.02;
+  letter-spacing: 0.04em;
+  color: var(--color-parchment);
+}
+.ch-odia {
+  margin-top: 1rem;
+  font-size: clamp(1.4rem, 3vw, 2.1rem);
+  color: rgb(var(--rgb-gold-glow) / 0.9);
+}
+.ch-sub {
+  display: flex;
+  align-items: center;
+  gap: 0.9em;
+  margin-top: 1.2rem;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: clamp(1.1rem, 1.6vw, 1.35rem);
+  color: rgb(var(--rgb-gold-light) / 0.85);
+}
+.ch-sub-line {
+  margin-top: 1.1rem;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: clamp(1.15rem, 1.7vw, 1.4rem);
+  line-height: 1.5;
+  color: rgb(var(--rgb-gold-light) / 0.85);
+}
+.ch-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgb(var(--rgb-gold-glow) / 0.8);
+}
+
+/* ---- Our Story ---------------------------------------------------------------------- */
+.story {
+  display: grid;
+  gap: clamp(4rem, 14svh, 9rem);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.story-beat {
+  display: grid;
+  gap: 1.8rem;
+  align-items: center;
+}
+@media (min-width: 52rem) {
+  .story-beat {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr);
+    gap: clamp(2rem, 5vw, 5rem);
+  }
+  .story-beat[data-side='r'] .story-photo {
+    order: 2;
+  }
+}
+.story-photo {
+  margin: 0;
+  position: relative;
+  max-width: min(100%, 30rem);
+}
+@media (min-width: 52rem) {
+  .story-photo {
+    max-width: none;
+  }
+}
+.story-photo img {
+  display: block;
+  width: 100%;
+  max-height: 72svh;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  border-radius: 2px;
+  outline: 1px solid rgb(var(--rgb-gold-glow) / 0.45);
+  outline-offset: 10px;
+  box-shadow: 0 40px 80px -40px rgb(var(--rgb-black) / 0.9);
+}
+.story-kicker {
+  font-size: var(--text-caption);
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: rgb(var(--rgb-gold-glow) / 0.9);
+}
+.story-line {
+  margin-top: 1rem;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 400;
+  font-size: var(--text-subtitle);
+  line-height: 1.32;
+  color: var(--color-parchment);
+  text-wrap: pretty;
+}
+.story-closing {
+  display: grid;
+  gap: clamp(2rem, 4vw, 3.5rem);
+  margin-top: clamp(4rem, 14svh, 9rem);
+  align-items: end;
+}
+@media (min-width: 52rem) {
+  .story-closing {
+    grid-template-columns: 1.6fr 1fr;
+  }
+}
+.story-closing .story-photo {
+  max-width: none;
+}
+.story-closing .story-photo img {
+  /* width/height attributes reserve the space (no layout shift when they load) */
+  height: auto;
+  max-height: 60svh;
+  object-fit: contain;
+}
+
+/* ---- Ceremonies --------------------------------------------------------------------- */
+.ceremony {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 100svh;
+}
+.ceremony-card {
+  max-width: 40rem;
+}
+.ceremony-odia {
+  margin-top: 1.4rem;
+  font-size: var(--text-display);
+  line-height: 1.1;
+  background: linear-gradient(180deg, var(--color-ivory) 0%, #e9c479 60%, #c9933b 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.ceremony-name,
+.ceremony-title {
+  margin-top: 0.6rem;
+  font-size: clamp(1.1rem, 2vw, 1.5rem);
+  font-weight: 450;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-parchment);
+}
+.ceremony-title {
+  margin-top: 1.4rem;
+  font-size: clamp(2.6rem, 7vw, 5.6rem);
+  letter-spacing: 0.08em;
+  line-height: 1.02;
+}
+.ceremony-en {
+  display: block;
+  margin-top: 0.5rem;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 1.2em;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: rgb(var(--rgb-gold-light) / 0.85);
+}
+.ceremony-en-line {
+  margin-top: 0.8rem;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: clamp(1.2rem, 2vw, 1.6rem);
+  color: rgb(var(--rgb-gold-light) / 0.85);
+}
+.ceremony-desc {
+  margin-top: 1.6rem;
+  font-family: var(--font-display);
+  font-size: var(--text-lead);
+  line-height: 1.5;
+  color: rgb(var(--rgb-gold-light) / 0.92);
+  text-wrap: pretty;
+}
+.ceremony-facts {
+  margin-top: 2.4rem;
+  max-width: 30rem;
+}
+.ceremony-facts > div {
+  display: grid;
+  grid-template-columns: 6rem 1fr;
+  gap: 1rem;
+  align-items: baseline;
+  padding: 0.9rem 0;
+  border-top: 1px solid rgb(var(--rgb-gold-glow) / 0.25);
+}
+.ceremony-facts > div:last-child {
+  border-bottom: 1px solid rgb(var(--rgb-gold-glow) / 0.25);
+}
+.ceremony-facts dt {
+  font-size: var(--text-caption);
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: rgb(var(--rgb-gold-glow) / 0.9);
+}
+.ceremony-facts dd {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.1rem, 1.6vw, 1.3rem);
+  color: var(--color-parchment);
+}
+
+.ganthi {
+  max-width: 40rem;
+  margin-top: clamp(6rem, 20svh, 12rem);
+}
+.ganthi-odia {
+  font-size: var(--text-title);
+  color: rgb(233 196 121 / 0.95);
+}
+.ganthi-name {
+  margin-top: 0.4rem;
+  font-size: clamp(1rem, 1.7vw, 1.25rem);
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--color-parchment);
+}
+.ganthi-line {
+  margin-top: 1rem;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: clamp(1.3rem, 2.2vw, 1.8rem);
+  line-height: 1.4;
+  color: rgb(var(--rgb-gold-light) / 0.9);
+}
+
+/* ---- Rituals ------------------------------------------------------------------------ */
+.rituals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+  gap: clamp(1rem, 2vw, 1.6rem);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.ritual {
+  padding: 1.6rem 1.5rem 1.7rem;
+  border-radius: 18px;
+  border: 1px solid rgb(var(--rgb-gold-glow) / 0.22);
+  background: linear-gradient(160deg, rgb(48 10 20 / 0.55), rgb(14 4 8 / 0.6));
+  box-shadow: inset 0 1px 0 rgb(255 240 210 / 0.06);
+}
+.ritual-step {
+  font-size: var(--text-caption);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: rgb(var(--rgb-gold-glow) / 0.85);
+}
+.ritual-name {
+  margin-top: 0.8rem;
+  font-size: clamp(1.25rem, 1.8vw, 1.5rem);
+  font-weight: 450;
+  letter-spacing: 0.04em;
+  color: var(--color-parchment);
+}
+.ritual-odia {
+  margin-top: 0.35rem;
+  font-size: 1.05rem;
+  color: rgb(var(--rgb-gold-glow) / 0.9);
+}
+.ritual-text {
+  margin-top: 0.9rem;
+  font-family: var(--font-display);
+  font-size: var(--text-body);
+  line-height: 1.5;
+  color: rgb(var(--rgb-gold-light) / 0.9);
+}
+
+/* ---- Night finale ------------------------------------------------------------------- */
+.night {
+  padding-bottom: 3rem;
+}
+.night-lines {
+  display: grid;
+  gap: clamp(30svh, 40svh, 50svh);
+  padding: 10svh 0 30svh;
+}
+.night-line {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: clamp(1.8rem, 3.6vw, 3rem);
+  line-height: 1.25;
+  color: var(--color-parchment);
+  max-width: 34rem;
+}
+.night-card {
+  min-height: 60svh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.night-odia {
+  font-size: var(--text-display);
+  line-height: 1.15;
+  background: linear-gradient(180deg, var(--color-ivory) 0%, #e9c479 60%, #c9933b 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.night-title {
+  margin-top: 0.4rem;
+  font-size: clamp(1.1rem, 2vw, 1.5rem);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--color-parchment);
+}
+.night-names {
+  margin-top: 0;
+  text-wrap: balance; /* "Rajesh Nayak &" / "Chinmayee Patel", never a lone surname */
+  font-size: clamp(1.1rem, 2.4vw, 1.8rem);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-parchment);
+}
+.night-names-odia {
+  margin-top: 0.6rem;
+  font-size: clamp(1rem, 1.8vw, 1.3rem);
+  color: rgb(var(--rgb-gold-light) / 0.85);
+}
+.night-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.2rem 2.6rem;
+  margin-top: 2.6rem;
+  padding: 0;
+  list-style: none;
+}
+.night-dates li {
+  display: grid;
+  gap: 0.3rem;
+}
+.night-date {
+  font-size: var(--text-subtitle);
+  color: var(--color-parchment);
+  letter-spacing: 0.06em;
+}
+.night-date-name {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 1.1rem;
+  color: rgb(var(--rgb-gold-glow) / 0.9);
+}
+.site-foot {
+  margin-top: 8svh;
+  padding-top: 1.6rem;
+  border-top: 1px solid rgb(var(--rgb-gold-glow) / 0.2);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.8rem 2rem;
+  font-family: var(--font-display);
+  font-size: var(--text-body);
+  color: rgb(var(--rgb-gold-light) / 0.8);
+}
+.foot-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.6rem;
+}
+.foot-links a {
+  color: var(--color-parchment);
+  text-decoration: underline;
+  text-decoration-color: rgb(var(--rgb-gold-glow) / 0.45);
+  text-underline-offset: 4px;
+  overflow-wrap: anywhere;
+}
+
+/* ======================================================================================
+   WHEEL NAVIGATION
+   ====================================================================================== */
+.wnav-toggle {
+  position: fixed;
+  z-index: 60;
+  top: max(14px, env(safe-area-inset-top));
+  right: max(14px, env(safe-area-inset-right));
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 4px 4px 4px 14px;
+  border-radius: 999px;
+  color: var(--color-parchment);
+  background: rgb(10 6 8 / 0.42);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgb(var(--rgb-gold-glow) / 0.14);
+  opacity: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
+  transition:
+    opacity 0.6s ease,
+    transform 0.6s var(--ease-out-expo);
+}
+.wnav-toggle[data-visible='true'] {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+.wnav-label {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+.wnav-num {
+  font-size: var(--text-caption);
+  letter-spacing: 0.2em;
+  color: rgb(var(--rgb-gold-glow) / 0.9);
+}
+.wnav-name {
+  font-size: var(--text-caption);
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+@media (max-width: 40rem) {
+  .wnav-name {
+    display: none;
+  }
+}
+.wnav-wheel {
+  display: block;
+  overflow: visible;
+}
+.wnav-wheel circle,
+.wnav-wheel line {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+.wnav-track {
+  stroke: rgb(var(--rgb-gold-glow) / 0.14);
+  stroke-width: 1.5px;
+}
+.wnav-progress {
+  stroke: var(--color-honey);
+  stroke-width: 1.5px;
+  stroke-dasharray: 1;
+  transition: stroke-dashoffset 0.25s linear;
+}
+.wnav-rim {
+  stroke: rgb(var(--rgb-gold-glow) / 0.75);
+  stroke-width: 1.2px;
+}
+.wnav-rim--in {
+  stroke: rgb(var(--rgb-gold-glow) / 0.35);
+}
+.wnav-hub {
+  stroke: rgb(var(--rgb-gold-glow) / 0.75);
+  stroke-width: 1.2px;
+}
+.wnav-spoke {
+  stroke: rgb(var(--rgb-gold-glow) / 0.4);
+  stroke-width: 1.2px;
+  transition: stroke 0.4s;
+}
+.wnav-spoke.is-active {
+  stroke: #ffd98a;
+  stroke-width: 2.4px;
+}
+.wnav-turn {
+  transition: transform 0.9s var(--ease-out-expo);
+}
+
+.wnav-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 5rem 1.4rem 2rem;
+  /* Solid: nothing of the page shows through the list (text over text). */
+  background:
+    radial-gradient(ellipse at 30% 50%, rgb(90 40 10 / 0.18), transparent 60%),
+    #060406;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.5s ease,
+    visibility 0s 0.5s;
+}
+.wnav-menu[data-open='true'] {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.5s ease;
+}
+.wnav-menu[data-phase='jumping'] .wnav-menu-inner {
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+.wnav-menu-inner {
+  display: grid;
+  gap: 2rem;
+  align-items: center;
+  width: min(100%, 64rem);
+}
+@media (min-aspect-ratio: 1/1) {
+  .wnav-menu-inner {
+    grid-template-columns: auto 1fr;
+    gap: clamp(2rem, 6vw, 6rem);
+  }
+}
+.wnav-big {
+  justify-self: center;
+}
+.wnav-big svg {
+  width: min(56vmin, 520px);
+  height: auto;
+}
+@media (max-aspect-ratio: 1/1) {
+  .wnav-big svg {
+    width: min(42vw, 30svh);
+  }
+}
+.wnav-big .wnav-rim,
+.wnav-big .wnav-hub,
+.wnav-big .wnav-spoke {
+  stroke-width: 1.5px;
+}
+.wnav-big .wnav-spoke.is-active {
+  stroke-width: 3px;
+}
+.wnav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.15rem;
+}
+.wnav-item {
+  display: flex;
+  align-items: baseline;
+  gap: 1.2rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.45rem 0.2rem;
+  text-align: left;
+  color: rgb(243 220 170 / 0.72);
+  transition: color 0.3s;
+}
+.wnav-item:hover,
+.wnav-item:focus-visible,
+.wnav-item[aria-current] {
+  color: #ffe4a8;
+}
+.wnav-item-num {
+  font-size: var(--text-caption);
+  letter-spacing: 0.2em;
+  color: rgb(var(--rgb-gold-glow) / 0.85);
+  min-width: 1.6rem;
+}
+.wnav-item-label {
+  font-size: var(--text-lead);
+  letter-spacing: 0.06em;
+}
+.wnav-item[aria-current] .wnav-item-label::after {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 0.8rem;
+  transform: translateY(-0.3em) rotate(45deg);
+  background: var(--color-honey);
+}
+.wnav-close {
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top));
+  right: max(14px, env(safe-area-inset-right));
+  min-height: 44px;
+  padding: 0 1.2rem;
+  border-radius: 999px;
+  border: 1px solid rgb(var(--rgb-gold-glow) / 0.35);
+  font-size: var(--text-caption);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--color-parchment);
+}
+@media (prefers-reduced-motion: reduce) {
+  .wnav-turn,
+  .wnav-menu,
+  .wnav-toggle {
+    transition: none;
+  }
+}
+
+/* ---- Hata Ganthi -------------------------------------------------------------------- */
+.ganthi {
+  max-width: none;
+}
+.hg-stage {
+  position: relative;
+  margin-top: 2rem;
+  /* the drawings run to the column's edges; arms enter from the sides */
+  width: 100%;
+  touch-action: pan-y; /* vertical swipes still scroll; horizontal ones move the hands */
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.hg-stage[data-joined='true'] {
+  cursor: default;
+}
+.hg-stage:active {
+  cursor: grabbing;
+}
+.hg-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+.hg-cord,
+.hg-loop {
+  fill: none;
+  stroke: var(--color-kumkum);
+  stroke-width: 11;
+  stroke-linecap: round;
+}
+.hg-cord-twist,
+.hg-loop--twist {
+  stroke: #f1c56b;
+  stroke-width: 4;
+  stroke-dasharray: 7 11;
+}
+.hg-loop {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  opacity: 0;
+}
+.hg-loop--twist {
+  stroke-dasharray: 0.012 0.022;
+}
+.hg-loop--back {
+  stroke: #6e0a1a;
+}
+.hg-leaf {
+  fill: url(#hgLeaf);
+  stroke: var(--color-honey);
+  stroke-width: 2;
+}
+.hg-leaf-vein {
+  fill: none;
+  stroke: var(--color-honey);
+  stroke-width: 1.5;
+  opacity: 0.8;
+}
+.hg-tail {
+  fill: none;
+  stroke: var(--color-kumkum);
+  stroke-width: 10;
+  stroke-linecap: round;
+}
+.hg-knot-core {
+  fill: var(--color-kumkum);
+  r: 16;
+  stroke: #f1c56b;
+  stroke-width: 3;
+}
+.hg-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.8rem 1.6rem;
+  min-height: 48px;
+  margin-top: 1rem;
+}
+.hg-hint {
+  font-size: var(--text-caption);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: rgb(var(--rgb-gold-glow) / 0.9);
+  animation: scroll-label 2.4s ease-in-out infinite;
+}
+.hg-hint-mouse {
+  display: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .hg-hint-mouse {
+    display: inline;
+  }
+  .hg-hint-touch {
+    display: none;
+  }
+}
+.hg-join {
+  min-height: 44px;
+  padding: 0 1.3rem;
+  border-radius: 999px;
+  border: 1px solid rgb(var(--rgb-gold-glow) / 0.45);
+  font-size: var(--text-caption);
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--color-parchment);
+  transition: background 0.3s, border-color 0.3s;
+}
+@media (hover: hover) and (pointer: fine) {
+  .hg-join:hover {
+    background: rgb(var(--rgb-gold-glow) / 0.1);
+    border-color: rgb(var(--rgb-gold-glow) / 0.8);
+  }
+}
+.hg-lines {
+  margin-top: 1.4rem;
+  min-height: 7.5em;
+}
+.hg-lines .ganthi-line {
+  margin-top: 0.5rem;
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity 1.1s var(--ease-out-expo),
+    transform 1.1s var(--ease-out-expo);
+}
+.hg-lines .ganthi-line[data-on='true'] {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hg-lines .ganthi-line {
+    transition: none;
+  }
+}
+
+/* ---- The finale portrait (drawn by the 3D world over .np-frame) ----------------------- */
+.np-track {
+  /* 160svh of scroll for the portrait (light, rift, names), then 460svh for the closing
+     scene's camera journey to the temple — one pinned stage, one continuous sky. */
+  height: 720svh;
+}
+.np-stage {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.8rem, 2.4svh, 1.6rem);
+  text-align: center;
+}
+.np-compose {
+  position: relative;
+  width: min(100%, calc(62svh * 1000 / 940));
+}
+.np-frame {
+  width: 100%;
+  aspect-ratio: 1000 / 940;
+}
+.np-frame {
+  position: relative;
+}
+/* The rift portrait canvas (chapters/RiftPortrait.tsx): larger than the frame so the
+   light can glow past the photo — margins match PAD_X / PAD_Y there. */
+.np-canvas {
+  position: absolute;
+  left: -25%;
+  top: -12%;
+  width: 150%;
+  height: 124%;
+  pointer-events: none;
+}
+.night-blessing {
+  justify-content: flex-start; /* in line with the names and dates below */
+  margin-bottom: 1.4rem;
+}
+.night-blessing {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  font-size: clamp(1rem, 1.8vw, 1.35rem);
+  color: rgb(var(--rgb-gold-light) / 0.9);
+}
+.np-sub-en {
+  font-size: 0.75em;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+}
+.np-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgb(var(--rgb-gold-glow) / 0.8);
+}
+/* ---- The finale names: one beside each person, either side of the rift ------------------
+   Landscape: Chinmayee in the sky to the upper left of the light, Rajesh to the lower right
+   — each line of a name steps along the rift's slant. Portrait: above and below the photo.
+   Reveal (data-names="in", set when the photo has opened): letters are written out from the
+   light, nearest first (blur → sharp); a gold hairline draws outward; the Odia name settles;
+   then a soft foil glint runs through the gold now and then, outward from the rift. */
+.np-name {
+  position: absolute;
+  z-index: 2;
+  white-space: nowrap;
+  pointer-events: none;
+  --step: clamp(0.8rem, 1.5vw, 1.5rem); /* the rift's slant over one line */
+}
+.np-name--c {
+  right: 90%;
+  top: 5%;
+  text-align: right;
+  --dir: -1;
+}
+.np-name--r {
+  left: 72%;
+  top: 66%;
+  text-align: left;
+  --dir: 1;
+}
+.np-name__mark {
+  display: inline-block; /* as wide as the word, so the rule can start at its letter */
+  vertical-align: top;
+  --name-size: clamp(1.5rem, 2.7vw, 3.1rem);
+  font-size: var(--name-size); /* the name's size, so em offsets match it */
+}
+.np-name--r .np-name__mark {
+  margin-left: var(--step);
+}
+.np-name__en {
+  position: relative;
+  font-size: 1em;
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-kerning: none;
+  color: #f3dca6;
+  text-shadow:
+    0 0 22px rgb(140 95 255 / 0.55),
+    0 0 2px rgb(255 225 170 / 0.35);
+}
+.np-name__en {
+  margin-right: -0.14em; /* drop the tracking after the last letter: the word ends at it */
+}
+.np-ch {
+  display: inline-block;
+  opacity: 0;
+  filter: blur(10px);
+  transform: translateX(calc(var(--dir) * -0.6em));
+  transition:
+    opacity 0.4s ease,
+    filter 0.4s ease,
+    transform 0.4s ease;
+}
+[data-names='in'] .np-ch {
+  opacity: 1;
+  filter: blur(0);
+  transform: none;
+  transition:
+    opacity 0.9s ease,
+    filter 1.1s ease,
+    transform 1.3s var(--ease-out-expo);
+  transition-delay: calc(0.1s + var(--i) * 70ms);
+}
+.np-name__foil {
+  position: absolute;
+  inset: 0;
+  color: transparent;
+  text-shadow: none;
+  background: linear-gradient(
+    115deg,
+    transparent 0 40%,
+    rgb(255 250 235 / 0.95) 48%,
+    rgb(255 226 160 / 0.85) 51%,
+    transparent 60% 100%
+  );
+  background-size: 300% 100%;
+  background-position: 100% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.np-name--c .np-name__foil {
+  background-position: 0 0;
+}
+[data-names='in'] .np-name--r .np-name__foil {
+  animation: np-foil-out 7s ease-in-out 2s infinite;
+}
+[data-names='in'] .np-name--c .np-name__foil {
+  animation: np-foil-in 7s ease-in-out 2s infinite;
+}
+@keyframes np-foil-out {
+  0% { background-position: 100% 0; }
+  28%, 100% { background-position: 0 0; }
+}
+@keyframes np-foil-in {
+  0% { background-position: 0 0; }
+  28%, 100% { background-position: 100% 0; }
+}
+.np-name__rule {
+  display: block;
+  height: 1px;
+  width: 72%;
+  margin: 0.55rem 0 0.5rem;
+  background: linear-gradient(to right, rgb(var(--rgb-honey) / 0.95), transparent);
+  box-shadow: 0 0 8px rgb(var(--rgb-honey) / 0.35);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.4s ease;
+}
+.np-name--r .np-name__rule {
+  margin-left: 0.02em; /* the R's left side-bearing: the line starts at its ink */
+}
+.np-name--c .np-name__rule {
+  margin-left: auto;
+  margin-right: 0.1em; /* the E's own right side-bearing: the line ends at its ink */
+  background: linear-gradient(to left, rgb(var(--rgb-honey) / 0.95), transparent);
+  transform-origin: right;
+}
+[data-names='in'] .np-name__rule {
+  transform: scaleX(1);
+  transition: transform 1.2s var(--ease-out-expo) 0.75s;
+}
+.np-name__odia {
+  font-size: clamp(0.95rem, 1.3vw, 1.3rem);
+  color: rgb(var(--rgb-gold-light) / 0.82);
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity 0.4s ease,
+    transform 0.4s ease;
+}
+.np-name--c .np-name__mark {
+  text-align: right;
+}
+.np-name--r .np-name__mark {
+  text-align: left;
+}
+/* the Odia name, one line lower, steps once more along the rift's slant */
+/* the Odia name lines up with the English letter nearest the rift: its ink ends exactly at
+   Chinmayee's last E and starts exactly at Rajesh's R (E / R side-bearings in name ems) */
+.np-name--c .np-name__odia {
+  margin-right: calc(var(--name-size) * 0.1 - 0.058em); /* less the ୀ's own bearing */
+}
+.np-name--r .np-name__odia {
+  margin-left: calc(var(--name-size) * 0.02 - 0.031em); /* less the ର's own bearing */
+}
+[data-names='in'] .np-name__odia {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 1s ease 1.1s,
+    transform 1.2s var(--ease-out-expo) 1.1s;
+}
+/* Portrait screens: no room beside the photo — Chinmayee above (left), Rajesh below
+   (right), keeping the rift's diagonal. */
+@media (max-aspect-ratio: 6/5) {
+  .np-name {
+    position: static;
+    --step: 0px;
+  }
+  .np-name__mark {
+    --name-size: clamp(1.5rem, 7.6vw, 2.6rem);
+  }
+  .np-name--c {
+    text-align: left;
+    margin-bottom: 1.2rem;
+  }
+  .np-name--r {
+    text-align: right;
+    margin-top: 1.2rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .np-ch,
+  .np-name__rule,
+  .np-name__odia {
+    transition: none !important;
+  }
+  .np-name__foil {
+    animation: none !important;
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .np-track {
+    height: auto;
+  }
+  .np-stage {
+    position: static;
+    height: auto;
+    padding: 10svh 0;
+  }
+}
+
+/* ---- The closing scene (world/TempleNight.tsx draws the temple, river and lanterns) -----
+   A tall track gives the camera's crane-down room; the stage stays pinned while it plays.
+   The names and dates arrive once the camera has settled (data-end="in"), in the sky to
+   the left of the temple (landscape) or above it (portrait). */
+.tn-stage {
+  /* an overlay on the pinned stage, full-bleed (undoing the chapter's side padding) */
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -1.4rem;
+  right: -1.4rem;
+  display: flex;
+  align-items: center;
+  padding: 0 clamp(1.5rem, 7vw, 7rem);
+  -webkit-tap-highlight-color: transparent;
+  pointer-events: none;
+}
+@media (min-aspect-ratio: 5/4) {
+  .tn-stage {
+    left: calc(-1 * max(calc(var(--mark-r) + 5vw), 8vw));
+    right: -7vw;
+  }
+}
+.tn-stage[data-end='in'] {
+  pointer-events: auto; /* taps reach the 3D scene once it has settled */
+}
+.tn-stage .night-card {
+  min-height: 0;
+  max-width: min(34rem, 44vw);
+  text-shadow: 0 2px 24px rgb(8 4 20 / 0.7);
+}
+.tn-stage .night-card > * {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity 0.5s ease,
+    transform 0.5s ease;
+}
+.tn-stage[data-end='in'] .night-card > * {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 1.3s ease,
+    transform 1.6s var(--ease-out-expo);
+}
+.tn-stage[data-end='in'] .night-card > :nth-child(1) { transition-delay: 0.1s; }
+.tn-stage[data-end='in'] .night-card > :nth-child(2) { transition-delay: 0.45s; }
+.tn-stage[data-end='in'] .night-card > :nth-child(3) { transition-delay: 0.7s; }
+.tn-stage[data-end='in'] .night-card > :nth-child(4) { transition-delay: 1s; }
+.tn-hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: max(3svh, env(safe-area-inset-bottom));
+  text-align: center;
+  font-size: var(--text-caption);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgb(var(--rgb-gold-light) / 0.55);
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+}
+.tn-stage[data-end='in'] .tn-hint {
+  opacity: 1;
+  transition: opacity 1.4s ease 2.6s;
+}
+@media (max-aspect-ratio: 21/20) {
+  .tn-stage {
+    align-items: flex-start;
+    padding-top: max(12svh, 4.5rem);
+  }
+  .tn-stage .night-card {
+    max-width: none;
+  }
+  .tn-hint {
+    padding: 0 1.5rem;
+    line-height: 1.7;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tn-stage .night-card > *,
+  .tn-hint {
+    transition: none !important;
+  }
+}
+
+/* Gold ghost glow trailing the ring (cursor/GoldGhost.tsx): full-page layer just below
+   the ring, never catches clicks; fades out near the couple's photos; off until the
+   loading screen has gone (html[data-site-ready], set by Preloader). */
+.gold-ghost {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483646;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+.gold-ghost[data-hidden='dim'] { opacity: 0.01; }
+/* Over the page-3 selfie: the glow comes back, reduced (his ask). */
+.gold-ghost[data-hidden='soft'] { opacity: 0.35; } /* his pick (tried 0.18) */
+.gold-ghost[data-hidden='true'],
+html:not([data-site-ready]) .gold-ghost {
+  opacity: 0;
+  /* Once faded out, take the full-screen blended layer out of compositing entirely —
+     Safari kept blending it over the page every frame even at opacity 0 (page-3 lag). */
+  visibility: hidden;
+  transition:
+    opacity 0.35s ease,
+    visibility 0s linear 0.35s;
+}
+@media (forced-colors: active) {
+  .gold-ghost {
+    display: none;
+  }
+}
+
+/* Page 3 — Bride & Groom. A tall section with a pinned stage: as you scroll, the view
+   pans right and down past the blossom tree (--pan 0→1) and the selfie slides in from the
+   bottom-right into place (--rev 0→1). Both set in BrideGroom.tsx. */
+.bride-groom {
+  --pan: 0;
+  --rev: 0;
+  position: relative;
+  z-index: 10;
+  /* 1 screen + a 640svh pin: ~100svh of scroll per beat (first slide + 5 photo hand-overs,
+     fx.ts UNITS / SLIDE_SHARE), then a short rest. Pace itself is governed, not scroll-bound. */
+  height: 940svh; /* +200svh for the cut-out title intro (fx.ts INTRO) */
+  outline: none;
+}
+.bg-stage {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  min-height: 34rem;
+  overflow: hidden;
+}
+/* Background is 30% larger than the screen so the pan never shows an edge. Translate %
+   is of its own size: 30 / 130 = 23.08%. */
+.bg-pan {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 130%;
+  height: 130%;
+  /* Pan transform is set inline by BrideGroom in whole device pixels (= pan × 30%). */
+  will-change: transform;
+}
+/* Cut-out title intro: black cover with the words as windows onto the tree. */
+.bg-intro {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.bg-title-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.bg-title {
+  position: absolute;
+  z-index: 1;
+  top: clamp(4.5rem, 11svh, 7rem);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 0 1.4rem;
+  text-align: center;
+  font-size: var(--text-title);
+  font-weight: 420;
+  line-height: 1.02;
+  letter-spacing: 0.04em;
+  color: var(--color-parchment);
+}
+/* The selfie, in the dark space the pan opens up (right side). Never under the title. */
+.bg-photo {
+  /* Lives inside the petals' 130% panning layer (between sky and tree canvases). */
+  position: absolute;
+  z-index: 4;
+  /* Size and place are set by BrideGroom in whole device pixels (crisp while moving). */
+  left: 0;
+  top: 0;
+  margin: 0;
+  border-radius: 18px;
+  /* Moved every frame by BrideGroom (enter, exit behind the blossoms, 3D turn, hover). */
+  will-change: transform, opacity;
+}
+/* Photos can't be selected, dragged out or long-press saved (his ask). */
+.bg-photo,
+.story-photo,
+.story-photo img,
+.np-frame,
+.np-frame img {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  -webkit-touch-callout: none;
+}
+/* Invisible outline markers (BrideGroom GHOST_CORNERS): the ghost glow is clipped to the
+   polygon through them, so it matches the photo's tilted, rounded shape. ~5px inside the
+   18px corners so the octagon stays within the curve. */
+.bg-ghost-pt {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.bg-ghost-pt--tl1 { left: 0; top: 13px; }
+.bg-ghost-pt--tl2 { left: 13px; top: 0; }
+.bg-ghost-pt--tr1 { right: 13px; top: 0; }
+.bg-ghost-pt--tr2 { right: 0; top: 13px; }
+.bg-ghost-pt--br1 { right: 0; bottom: 13px; }
+.bg-ghost-pt--br2 { right: 13px; bottom: 0; }
+.bg-ghost-pt--bl1 { left: 13px; bottom: 0; }
+.bg-ghost-pt--bl2 { left: 0; bottom: 13px; }
+/* ONE painted element per photo (Safari fix, 22 Nov 2026): the picture is the figure's own
+   background and the frame is its own box-shadow — 1px var(--color-moon) edge line (blossom colour),
+   outer glow, and an inner glow that sits over the photo's edge (inset shadows paint above
+   the background). With a separate <img> + ::after frame, Safari drew them apart whenever
+   the photo was tilted in 3D: a doubled frame and a square corner (his bug photos). */
+.bg-photo {
+  background-color: #111;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  box-shadow:
+    0 0 0 1px var(--color-moon),
+    0 0 12px rgb(var(--rgb-moon) / 0.6),
+    0 0 28px rgb(var(--rgb-moon) / 0.3),
+    inset 0 0 9px rgb(var(--rgb-moon) / 0.55),
+    0 30px 80px rgb(var(--rgb-black) / 0.55);
+  /* No box-shadow transition: blurred shadows can't animate on the GPU, so each hover
+     repainted the photo's layer for 0.6 s. The brighter glow now switches instantly. */
+}
+.bg-photo[data-hover] {
+  box-shadow:
+    0 0 0 1px var(--color-moon),
+    0 0 16px rgb(var(--rgb-moon) / 0.85),
+    0 0 40px rgb(var(--rgb-moon) / 0.45),
+    inset 0 0 11px rgb(var(--rgb-moon) / 0.7),
+    0 30px 80px rgb(var(--rgb-black) / 0.55);
+}
+.blessing-invocation{position:absolute;left:55%;right:4%;top:46%;text-align:center;color:#f6dda9;pointer-events:none;text-shadow:0 2px 14px #08070b}
+.blessing-invocation span{display:block}
+.blessing-invocation [lang=or]{font-family:'Noto Serif Oriya Variable',serif;font-size:clamp(1.7rem,3.3vw,3.8rem)}
+.blessing-invocation [lang=en]{margin-top:.6em;font:italic clamp(1.1rem,1.9vw,2rem) Georgia,serif}
+@media(orientation:portrait){.blessing-invocation{left:4%;top:76%}}
