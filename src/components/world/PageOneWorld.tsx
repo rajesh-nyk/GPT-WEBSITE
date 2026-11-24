@@ -14,11 +14,12 @@ import { screenShapes } from './screenShapes'
 import { TravelingWheel } from './TravelingWheel'
 import { WorldBackdrop } from './WorldBackdrop'
 import { WorldLighting } from './WorldLighting'
+import { DivineLight } from './DivineLight'
 
 /** The approved page-one scene, without later chapters or their runtime assets. */
 export function PageOneWorld() {
   const reducedMotion = useReducedMotion()
-  const { particles } = useQuality()
+  const { particles, tier } = useQuality()
   const pointer = useSmoothedPointer(2)
   const bloom = useRef<BloomEffect>(null)
   const bloomBase = useRef<number | null>(null)
@@ -55,6 +56,7 @@ export function PageOneWorld() {
       <GalaxyStars reducedMotion={reducedMotion} />
       <WorldLighting />
       <TravelingWheel pointer={pointer} reducedMotion={reducedMotion} anchorY={anchorY} />
+      {!reducedMotion && tier !== 'low' && <DivineLight />}
       {!reducedMotion && <GoldenMotes count={Math.round(particles * 0.08)} pointer={pointer} />}
       <QualityEffects bloomRef={bloom} bloomIntensity={0.45} bloomThreshold={0.86} vignette={0.4} />
     </>
