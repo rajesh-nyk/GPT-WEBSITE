@@ -6,7 +6,12 @@ export default function App() {
     <>
       <WorldCanvas />
       <main className="relative">
-        <Hero />
+        <Hero nextId="page-2" />
+        <section
+          id="page-2"
+          aria-label="Page 2"
+          className="relative z-10 min-h-svh w-full bg-white text-ink"
+        />
       </main>
     </>
   )
