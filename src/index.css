@@ -1837,3 +1837,12 @@ html {
 
 /* Vertical touch gestures are handled by paced Lenis; horizontal and pinch stay native. */
 html.cinematic-scroll { touch-action: pan-x pinch-zoom; }
+
+/* Cloud photos are composited independently of the high-DPR WebGL canvas.
+   Only opacity and translate/scale change, with no animated filters. */
+.cloud-passage { position: fixed; inset: 0; z-index: 20; overflow: hidden; pointer-events: none; visibility: hidden; }
+.cloud-passage__layer { position: absolute; left: 50%; top: 50%; width: max(115vw, 160vh); height: auto; transform-origin: center; will-change: transform, opacity; }
+.cloud-passage__layer--far { width: max(102vw, 115vh); }
+.cloud-passage__layer--near { width: max(135vw, 190vh); }
+.cloud-passage__mist { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 64%, rgb(196 211 237 / .34), rgb(158 174 202 / .12) 50%, transparent 80%); will-change: opacity; }
+@media (prefers-reduced-motion: reduce) { .cloud-passage { display: none; } }

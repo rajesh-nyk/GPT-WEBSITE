@@ -13,7 +13,6 @@ import { screenShapes } from './screenShapes'
 import { TravelingWheel } from './TravelingWheel'
 import { WorldBackdrop } from './WorldBackdrop'
 import { WorldLighting } from './WorldLighting'
-import { CloudFlyThrough } from './CloudFlyThrough'
 
 /** The approved page-one scene, without later chapters or their runtime assets. */
 export function PageOneWorld() {
@@ -61,7 +60,6 @@ export function PageOneWorld() {
       <GalaxyStars reducedMotion={reducedMotion} constellation={tier !== 'low'} continuous />
       <WorldLighting />
       <TravelingWheel pointer={pointer} reducedMotion={reducedMotion} anchorY={anchorY} pageTransition />
-      {!reducedMotion && <CloudFlyThrough />}
       <QualityEffects bloomRef={bloom} bloomIntensity={0.45} bloomThreshold={0.86} vignette={0.4} />
     </>
   )

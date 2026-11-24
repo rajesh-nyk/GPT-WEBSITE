@@ -1,0 +1,6 @@
+# Cloud artwork sources
+
+- Cloud / Fog Clouds by UploadMeToday, PurePNG (CC0; free commercial use, no attribution required): https://purepng.com/photo/746/nature-cloud and https://purepng.com/photo/747/nature-fog-clouds.
+- Clouds (transparent).png by Alex Maisuradze, CC BY 3.0: https://commons.wikimedia.org/wiki/File:Clouds_(transparent).png ; license https://creativecommons.org/licenses/by/3.0/ . Resized and converted to WebP for the transition.
+- FX_CloudAlpha02.png by WickedInsignia, CC0: https://opengameart.org/content/clouds-with-transparency-fxcloudalpha02png .
+- Build-time source selection and WebP conversion: scripts/prepare-clouds.mjs.

@@ -81,7 +81,9 @@ export const PRESETS: Record<Tier, QualitySettings> = {
 /** Explicit opt-in for presentation captures and powerful desktop GPUs. */
 const ULTRA_PRESET: QualitySettings = {
   tier: 'high',
-  dpr: [2, 2.5],
+  // Retain the ultra GLB and lighting, but limit the pixel workload for 60 FPS.
+  // The screenshot measured 38 FPS when clouds were blended into the composer.
+  dpr: [1, 1.5],
   shadows: true,
   shadowMapSize: 4096,
   postprocessing: 'full',
