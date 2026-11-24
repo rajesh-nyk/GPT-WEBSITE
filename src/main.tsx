@@ -6,8 +6,6 @@ import './lib/fonts'
 import App from './App.tsx'
 import { QualityProvider } from './lib/quality'
 import { Preloader } from './components/Preloader'
-import { GoldCursor } from './components/cursor/GoldCursor'
-import { GoldGhost } from './components/cursor/GoldGhost'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -18,8 +16,6 @@ createRoot(document.getElementById('root')!).render(
         <Preloader>
           <App />
         </Preloader>
-        <GoldGhost />
-        <GoldCursor />
       </QualityProvider>
     </MotionConfig>
   </StrictMode>,
