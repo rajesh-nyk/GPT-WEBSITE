@@ -80,16 +80,18 @@ export function TravelingWheel({
     if (pageTransition) {
       // Fixed camera. Page-one content moves by the exact native scroll offset.
       // Lenis owns the pace; there is no separate position tween.
-      const p = MathUtils.clamp(journey.target, 0, 1)
-      const turn = MathUtils.smootherstep(p, 0.015, 0.49)
+      const scrollY = window.scrollY
+      const span = document.getElementById('hero')?.offsetHeight || size.height
+      const p = MathUtils.clamp(scrollY / Math.max(1, span), 0, 1)
+      // A constant angular displacement per pixel: 360 degrees per hero height.
+      // No separate easing, delay, or time-driven rotation on this axis.
+      const turn = p
       const idle = 1 - MathUtils.smootherstep(p, 0, 0.12)
-      g.position.set(0, heroY + window.scrollY * pxToWorld, 0)
+      g.position.set(0, heroY + scrollY * pxToWorld, 0)
       g.scale.setScalar(scale)
       g.rotation.set(reducedMotion ? 0 : -pointer.y * MAX_TILT * idle, 0, 0)
       s.rotation.y = reducedMotion ? 0 : turn * Math.PI * 2
-      if (roll.current && !reducedMotion) {
-        roll.current.rotation.z -= dt * Math.PI * 2 / SECONDS_PER_TURN * idle * (1 - HOVER_SLOWDOWN * heroFx.hover)
-      }
+      if (roll.current) roll.current.rotation.z = 0
       entrance.current = reducedMotion ? 1 : Math.min(1, entrance.current + dt / ENTRANCE_SECONDS)
       const alpha = reducedMotion ? 1 : 1 - (1 - entrance.current) ** 3
       g.visible = p < 0.999 && alpha > 0.004

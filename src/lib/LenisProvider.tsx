@@ -75,10 +75,10 @@ export function LenisProvider({ children, paced = false }: { children: ReactNode
       }
       const limit = instance.limit
       goal = Math.max(0, Math.min(limit, goal))
-      // The only source of motion: about five seconds for a full hero exit.
+      // The only source of motion: about 3.6 seconds at the cap for a full hero exit.
       // Input speed cannot change the maximum rate, in either direction.
       const span = document.getElementById('hero')?.offsetHeight || window.innerHeight
-      const maxSpeed = span / 4.8
+      const maxSpeed = span / 3.6
       const accel = maxSpeed * 3
       const gap = goal - position
       if (Math.abs(gap) < 0.5 && Math.abs(velocity) < 2) {
