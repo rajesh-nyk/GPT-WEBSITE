@@ -209,7 +209,7 @@ const fragment = /* glsl */ `
 /** Hover is fully on when the pointer is there; the 5% itself is HOVER_GAIN in the shader. */
 const RAY_HOVER = 1
 
-export function WorldBackdrop() {
+export function WorldBackdrop({ continuous = false }: { continuous?: boolean } = {}) {
   const size = useThree((s) => s.size)
   const material = useMemo(
     () =>
@@ -275,23 +275,23 @@ export function WorldBackdrop() {
     rp.y += ((on ? 1 - pointer.clientY / size.height : 0.5) - rp.y) * k
     u.uRayMouse.value = [rp.x, rp.y]
     u.uRayHover.value = Math.min(1, rp.on) * RAY_HOVER
-    u.uT.value = journey.t
+    u.uT.value = continuous ? 0 : journey.t
     u.uBreath.value = heroFx.breath
-    u.uGanesha.value = CINE3
+    u.uGanesha.value = continuous || CINE3
       ? 0
       : ganeshaFx.glow * ganeshaFx.presence * (1 - ganeshaFx.leave)
     // The rays are screen-space, so they fade as the camera lifts above him.
     const away = MathUtils.smoothstep(journey.t, EXIT.up, EXIT.raysOut)
     // The living light replaces the Ray Column with the Lotus Ganesha (design 2026-11-22).
-    u.uRays.value = LOTUS ? 0 : ganeshaFx.rays * ganeshaFx.presence * (1 - ganeshaFx.leave) * (1 - away)
+    u.uRays.value = continuous || LOTUS ? 0 : ganeshaFx.rays * ganeshaFx.presence * (1 - ganeshaFx.leave) * (1 - away)
     u.uGaneshaHover.value = ganeshaFx.hover
     u.uTime.value = ganeshaFx.time
     u.uHeroCenter.value = glowCenters.hero
     u.uGaneshaCenter.value = glowCenters.ganesha
     u.uSunCenter.value = glowCenters.sun
     u.uSunRadius.value = Math.max(glowCenters.sunRadius, 0.01)
-    u.uSun.value = 1 - MathUtils.smootherstep(journey.t, 0.05, 0.6)
-    u.uSunCoreFade.value = 1 - MathUtils.smootherstep(journey.t, 0.02, 0.22)
+    u.uSun.value = continuous ? 1 : 1 - MathUtils.smootherstep(journey.t, 0.05, 0.6)
+    u.uSunCoreFade.value = continuous ? 1 : 1 - MathUtils.smootherstep(journey.t, 0.02, 0.22)
     u.uHeroTime.value = heroFx.time
     u.uHeroHover.value = heroFx.hover
     u.uRise.value = heroFx.rise

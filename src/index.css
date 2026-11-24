@@ -1824,41 +1824,13 @@ html {
   opacity: 0;
 }
 
-/* Clouds are independent SVG objects. GSAP only transforms their parent banks and
-   individual cloud wrappers; the actual vector artwork is never redrawn by JS. */
-.cloud-transition {
-  position: fixed;
-  inset: 0;
-  z-index: 20;
-  overflow: hidden;
-  pointer-events: none;
-  visibility: hidden;
+/* Small production QA overlay: measures actual WebGL render-frame cadence. */
+.scene-fps {
+  position: fixed; left: max(12px, env(safe-area-inset-left)); bottom: max(12px, env(safe-area-inset-bottom));
+  z-index: 100; pointer-events: none; padding: 5px 8px; border-radius: 4px;
+  background: rgb(5 7 12 / .78); color: #ddd; font: 11px/1.2 ui-monospace, monospace;
+  font-variant-numeric: tabular-nums; border: 1px solid rgb(255 255 255 / .12);
 }
-.cloud-transition__bank {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  will-change: transform;
-}
-.cloud-transition__bank--far { height: 65dvh; }
-.cloud-transition__bank--middle { height: 82dvh; }
-.cloud-transition__bank--near { height: 200dvh; }
-.cloud-transition__mist {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to bottom, transparent 0%, rgb(255 255 255 / 0.14) 9%, rgb(247 249 255 / 0.78) 19%, #fff 31%, #fff 100%);
-}
-.cloud-transition__cloud {
-  position: absolute;
-  display: block;
-  overflow: visible;
-  will-change: transform;
-  pointer-events: none;
-}
-.cloud-transition__cloud svg { display: block; width: 100%; height: 100%; overflow: visible; }
-@media (max-width: 700px) {
-  /* Retain a natural width/height ratio, not vertically stretched cloud shapes. */
-  .cloud-transition__cloud { min-width: 62vw; }
-}
-@media (prefers-reduced-motion: reduce) { .cloud-transition { display: none; } }
+.scene-fps[data-rate="good"] { color: #7dda58; }
+.scene-fps[data-rate="fair"] { color: #ffcc77; }
+.scene-fps[data-rate="low"] { color: #ff8585; }

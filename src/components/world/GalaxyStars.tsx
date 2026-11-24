@@ -70,7 +70,7 @@ const fragment =
 /** How far the stars slide left during the page 1 exit, in screen widths. */
 const STAR_DRIFT = 0.25
 
-export function GalaxyStars({ reducedMotion, constellation = false }: { reducedMotion: boolean; constellation?: boolean }) {
+export function GalaxyStars({ reducedMotion, constellation = false, continuous = false }: { reducedMotion: boolean; constellation?: boolean; continuous?: boolean }) {
   const material = useMemo(
     () =>
       new ShaderMaterial({
@@ -195,7 +195,7 @@ export function GalaxyStars({ reducedMotion, constellation = false }: { reducedM
     // Page 1 exit (Rajesh, 24 Nov 2026): as the camera leaves the wheel, every star drifts
     // the same way the wheel goes (left), on the governed timeline, and stops once the
     // wheel is gone. Slower than the wheel: the stars are far away.
-    if (LOTUS && CINE3 && !reducedMotion) {
+    if (!continuous && LOTUS && CINE3 && !reducedMotion) {
       ;(u.uFocal.value as Vector2).x = 0.5 - STAR_DRIFT * MathUtils.smootherstep(journey.t, 0.55, 1)
     }
     state.gl.getDrawingBufferSize(buffer)

@@ -13,6 +13,7 @@ import { screenShapes } from './screenShapes'
 import { TravelingWheel } from './TravelingWheel'
 import { WorldBackdrop } from './WorldBackdrop'
 import { WorldLighting } from './WorldLighting'
+import { CloudFlyThrough } from './CloudFlyThrough'
 
 /** The approved page-one scene, without later chapters or their runtime assets. */
 export function PageOneWorld() {
@@ -34,12 +35,18 @@ export function PageOneWorld() {
       effect.intensity = bloomBase.current * breath * (1 + 0.9 * heroFx.hover)
     }
 
-    if (import.meta.env.DEV) {
+    {
       const stats = frameStats.current
       stats.frames++
       stats.elapsed += delta
       if (delta > 1 / 50) stats.slow++
-      if (stats.elapsed >= 2) {
+      if (stats.elapsed >= 0.5) {
+        const fps = stats.frames / stats.elapsed
+        const display = document.getElementById('scene-fps')
+        if (display) {
+          display.textContent = Math.round(fps) + ' FPS'
+          display.dataset.rate = fps >= 58 ? 'good' : fps >= 45 ? 'fair' : 'low'
+        }
         document.documentElement.dataset.pageFps = (stats.frames / stats.elapsed).toFixed(1)
         document.documentElement.dataset.slowFrames = (stats.slow / stats.frames).toFixed(3)
         stats.frames = stats.elapsed = stats.slow = 0
@@ -49,11 +56,12 @@ export function PageOneWorld() {
 
   return (
     <>
-      <JourneyDirector reducedMotion={reducedMotion} />
-      <WorldBackdrop />
-      <GalaxyStars reducedMotion={reducedMotion} constellation={tier !== 'low'} />
+      <JourneyDirector reducedMotion={reducedMotion} directScroll />
+      <WorldBackdrop continuous />
+      <GalaxyStars reducedMotion={reducedMotion} constellation={tier !== 'low'} continuous />
       <WorldLighting />
-      <TravelingWheel pointer={pointer} reducedMotion={reducedMotion} anchorY={anchorY} />
+      <TravelingWheel pointer={pointer} reducedMotion={reducedMotion} anchorY={anchorY} pageTransition />
+      {!reducedMotion && <CloudFlyThrough />}
       <QualityEffects bloomRef={bloom} bloomIntensity={0.45} bloomThreshold={0.86} vignette={0.4} />
     </>
   )

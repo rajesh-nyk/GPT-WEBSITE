@@ -152,11 +152,11 @@ const BREATH_SECONDS = 9
  * Advances the governed timeline and derives every shared value the world reads.
  * Mount FIRST inside the world canvas so it runs before all readers each frame.
  */
-export function JourneyDirector({ reducedMotion }: { reducedMotion: boolean }) {
+export function JourneyDirector({ reducedMotion, directScroll = false }: { reducedMotion: boolean; directScroll?: boolean }) {
   useFrame((_, delta) => {
     const dt = Math.min(delta, 0.1)
 
-    if (reducedMotion) {
+    if (reducedMotion || directScroll) {
       journey.t = journey.target
       journey.velocity = 0
     } else {

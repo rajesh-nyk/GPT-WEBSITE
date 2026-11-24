@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense } from 'react'
 import { SceneCanvas } from '../three/SceneCanvas'
 import { PageOneWorld } from './PageOneWorld'
 
@@ -10,15 +10,7 @@ import { PageOneWorld } from './PageOneWorld'
  * sections.
  */
 export function WorldCanvas() {
-  const [active, setActive] = useState(true)
-  useEffect(() => {
-    const hero = document.getElementById('hero')
-    if (!hero) return
-    const observer = new IntersectionObserver(([entry]) => {
-      setActive(entry.isIntersecting && entry.intersectionRatio > 0)
-    }, { threshold: [0, 0.001] })
-    observer.observe(hero)
-    return () => observer.disconnect()
+  return () => observer.disconnect()
   }, [])
 
   return (
@@ -27,7 +19,6 @@ export function WorldCanvas() {
         label="A golden Konark wheel glowing among the stars."
         camera={{ position: [0, 0, 6], fov: 35, near: 0.1, far: 50 }}
         effects={false}
-        active={active}
       >
         <Suspense fallback={null}>
           <PageOneWorld />

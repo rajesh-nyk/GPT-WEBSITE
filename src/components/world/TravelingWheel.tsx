@@ -46,8 +46,10 @@ export function TravelingWheel({
   pointer,
   reducedMotion,
   anchorY,
+  pageTransition = false,
 }: {
   pointer: Vector2
+  pageTransition?: boolean
   reducedMotion: boolean
   /** Reduced motion: world-space Y offset of the hero (it scrolls with the page). */
   anchorY: { current: number }
@@ -74,6 +76,39 @@ export function TravelingWheel({
     const dt = Math.min(delta, 0.1)
     const t = journey.t
     const pxToWorld = viewport.height / size.height
+
+    if (pageTransition) {
+      // Lenis + the hero ScrollTrigger already smooth the scroll; a second
+      // governor would make the wheel lag behind the cloud passage.
+      const p = MathUtils.clamp(journey.target, 0, 1)
+      const turn = MathUtils.smootherstep(p, 0.015, 0.52)
+      const disappear = MathUtils.smootherstep(p, 0.45, 0.72)
+      const shown = 1 - disappear
+      const idle = 1 - MathUtils.smootherstep(p, 0, 0.12)
+      g.position.set(0, heroY, 0)
+      g.scale.setScalar(scale * (1 - 0.08 * turn))
+      g.rotation.set(reducedMotion ? 0 : -pointer.y * MAX_TILT * idle, 0, 0)
+      s.rotation.y = reducedMotion ? 0 : turn * Math.PI * 2
+      if (roll.current && !reducedMotion) {
+        roll.current.rotation.z -= dt * Math.PI * 2 / SECONDS_PER_TURN * idle * (1 - HOVER_SLOWDOWN * heroFx.hover)
+      }
+      entrance.current = reducedMotion ? 1 : Math.min(1, entrance.current + dt / ENTRANCE_SECONDS)
+      const alpha = reducedMotion ? (p < 0.5 ? 1 : 0) : shown * (1 - (1 - entrance.current) ** 3)
+      g.visible = alpha > 0.004
+      wheelState.glow = alpha
+      wheelState.ahead = false
+      fade.current ??= SolidFade.from(s, { occludes: true })
+      fade.current?.set(alpha)
+      if (g.visible) {
+        g.getWorldPosition(center)
+        toUv(center, camera, glowCenters.hero)
+        toUv(center, camera, glowCenters.sun)
+        const circle = projectCircle(center, HERO_DIAMETER_UNITS * scale / 2, camera, size.width, size.height)
+        glowCenters.sunRadius = circle.r / size.height
+        screenShapes.wheel = { ...circle, sx: Math.max(Math.abs(Math.cos(s.rotation.y)), 0.2) }
+      } else screenShapes.wheel = null
+      return
+    }
 
     let opacity = 1
     let k = 1
@@ -200,7 +235,7 @@ export function TravelingWheel({
 
   return (
     <group ref={travel}>
-      {LOTUS && CINE3 && !reducedMotion && <WheelGlitter />}
+      {!pageTransition && LOTUS && CINE3 && !reducedMotion && <WheelGlitter />}
       <group ref={spin}>
         <group ref={roll}>
           <Model src="dharma-wheel.glb" castShadow={false} receiveShadow={false} customize={gild} />
