@@ -81,13 +81,13 @@ export function TravelingWheel({
       // Lenis + the hero ScrollTrigger already smooth the scroll; a second
       // governor would make the wheel lag behind the camera.
       const p = MathUtils.clamp(journey.target, 0, 1)
-      const turn = MathUtils.smootherstep(p, 0.015, 0.55)
-      const travel = reducedMotion ? 0 : MathUtils.smootherstep(p, 0.20, 0.91)
-      const disappear = MathUtils.smootherstep(p, 0.72, 0.96)
+      const turn = MathUtils.smootherstep(p, 0.015, 0.49)
+      // The camera, not a separate object animation, carries the wheel out of shot.
+      const disappear = MathUtils.smootherstep(p, 0.86, 0.98)
       const shown = 1 - disappear
       const idle = 1 - MathUtils.smootherstep(p, 0, 0.12)
-      g.position.set(-2.8 * travel, heroY + 1.7 * travel, -3.3 * travel)
-      g.scale.setScalar(scale * (1 - 0.32 * travel))
+      g.position.set(0, heroY, 0)
+      g.scale.setScalar(scale)
       g.rotation.set(reducedMotion ? 0 : -pointer.y * MAX_TILT * idle, 0, 0)
       s.rotation.y = reducedMotion ? 0 : turn * Math.PI * 2
       if (roll.current && !reducedMotion) {

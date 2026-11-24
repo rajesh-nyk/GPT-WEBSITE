@@ -27,12 +27,14 @@ export function PageOneWorld() {
 
   useEffect(() => registerHoverRegion('wheel', () => screenShapes.wheel), [])
 
-  // Real camera dolly, evaluated after the shared journey director and before
-  // the wheel's projection. Both directions use the same governed scroll value.
+  // Reference clip (5–6 seconds): the camera descends vertically through one
+  // continuous scene. The wheel stays in world space and leaves through the top.
+  // No diagonal departure, cloud overlay, cut, or separately timed animation.
   useFrame(({ camera }) => {
     const p = MathUtils.clamp(journey.t, 0, 1)
-    const travel = reducedMotion ? 0 : MathUtils.smootherstep(p, .19, .94)
-    camera.position.set(.85 * travel, -.12 * travel, 6 - 1.45 * travel)
+    const travel = reducedMotion ? 0 : MathUtils.smootherstep(p, .16, .94)
+    const restingHeight = 12 * Math.tan(35 * Math.PI / 360)
+    camera.position.set(0, -restingHeight * 1.22 * travel, 6 + .34 * Math.sin(Math.PI * travel))
     camera.updateMatrixWorld()
   }, -5)
 
