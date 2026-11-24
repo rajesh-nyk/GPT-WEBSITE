@@ -79,14 +79,15 @@ export function TravelingWheel({
 
     if (pageTransition) {
       // Lenis + the hero ScrollTrigger already smooth the scroll; a second
-      // governor would make the wheel lag behind the cloud passage.
+      // governor would make the wheel lag behind the camera.
       const p = MathUtils.clamp(journey.target, 0, 1)
-      const turn = MathUtils.smootherstep(p, 0.015, 0.52)
-      const disappear = MathUtils.smootherstep(p, 0.45, 0.72)
+      const turn = MathUtils.smootherstep(p, 0.015, 0.55)
+      const travel = reducedMotion ? 0 : MathUtils.smootherstep(p, 0.20, 0.91)
+      const disappear = MathUtils.smootherstep(p, 0.72, 0.96)
       const shown = 1 - disappear
       const idle = 1 - MathUtils.smootherstep(p, 0, 0.12)
-      g.position.set(0, heroY, 0)
-      g.scale.setScalar(scale * (1 - 0.08 * turn))
+      g.position.set(-2.8 * travel, heroY + 1.7 * travel, -3.3 * travel)
+      g.scale.setScalar(scale * (1 - 0.32 * travel))
       g.rotation.set(reducedMotion ? 0 : -pointer.y * MAX_TILT * idle, 0, 0)
       s.rotation.y = reducedMotion ? 0 : turn * Math.PI * 2
       if (roll.current && !reducedMotion) {
@@ -101,10 +102,13 @@ export function TravelingWheel({
       fade.current?.set(alpha)
       if (g.visible) {
         g.getWorldPosition(center)
-        toUv(center, camera, glowCenters.hero)
-        toUv(center, camera, glowCenters.sun)
-        const circle = projectCircle(center, HERO_DIAMETER_UNITS * scale / 2, camera, size.width, size.height)
-        glowCenters.sunRadius = circle.r / size.height
+        // Preserve the original sun and backdrop in screen space throughout.
+        const circle = projectCircle(center, HERO_DIAMETER_UNITS * g.scale.x / 2, camera, size.width, size.height)
+        if (p < 0.02) {
+          toUv(center, camera, glowCenters.hero)
+          toUv(center, camera, glowCenters.sun)
+          glowCenters.sunRadius = circle.r / size.height
+        }
         screenShapes.wheel = { ...circle, sx: Math.max(Math.abs(Math.cos(s.rotation.y)), 0.2) }
       } else screenShapes.wheel = null
       return

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
+import { MathUtils } from 'three'
 import type { BloomEffect } from 'postprocessing'
 import { registerHoverRegion } from '../../lib/hoverRegions'
 import { useSmoothedPointer } from '../../lib/pointer'
@@ -7,7 +8,7 @@ import { useQuality } from '../../lib/quality'
 import { useReducedMotion } from '../../lib/useReducedMotion'
 import { heroFx } from '../hero/fx'
 import { QualityEffects } from '../three/QualityEffects'
-import { JourneyDirector } from './journey'
+import { JourneyDirector, journey } from './journey'
 import { GalaxyStars } from './GalaxyStars'
 import { screenShapes } from './screenShapes'
 import { TravelingWheel } from './TravelingWheel'
@@ -25,6 +26,15 @@ export function PageOneWorld() {
   const frameStats = useRef({ frames: 0, elapsed: 0, slow: 0 })
 
   useEffect(() => registerHoverRegion('wheel', () => screenShapes.wheel), [])
+
+  // Real camera dolly, evaluated after the shared journey director and before
+  // the wheel's projection. Both directions use the same governed scroll value.
+  useFrame(({ camera }) => {
+    const p = MathUtils.clamp(journey.t, 0, 1)
+    const travel = reducedMotion ? 0 : MathUtils.smootherstep(p, .19, .94)
+    camera.position.set(.85 * travel, -.12 * travel, 6 - 1.45 * travel)
+    camera.updateMatrixWorld()
+  }, -5)
 
   useFrame((_, delta) => {
     const effect = bloom.current

@@ -119,7 +119,7 @@ export function GalaxyStars({ reducedMotion, constellation = false, continuous =
   )
 
   // Warp boost (click / intro) and intro progress, as in Galaxy.
-  const fx = useMemo(() => ({ boost: 0, reveal: STAR.intro && !reducedMotion ? 0 : 1 }), [reducedMotion])
+  const fx = useMemo(() => ({ boost: 0, depth: 0, reveal: STAR.intro && !reducedMotion ? 0 : 1 }), [reducedMotion])
   useEffect(() => {
     const mouse = material.uniforms.uMouse.value as Vector2
     const active = material.uniforms.uMouseActiveFactor
@@ -182,20 +182,28 @@ export function GalaxyStars({ reducedMotion, constellation = false, continuous =
     const flight = STAR.starSpeed / 10
     u.uTime.value += dt * motion
     u.uGloss.value += dt * flight * motion
-    u.uDepth.value += dt * flight * STAR.speed * motion * (1 + fx.boost * 14)
+    fx.depth += dt * flight * STAR.speed * motion * (1 + fx.boost * 14)
+    const travel = continuous && !reducedMotion ? MathUtils.smootherstep(journey.t, .19, .94) : 0
+    // Scrubbed depth offset gives real radial star parallax without a second canvas.
+    u.uDepth.value = fx.depth + travel * .32
     u.uRotationAngle.value += dt * STAR.rotationSpeed * motion
     fx.boost *= Math.exp(-dt * 1.3)
     if (fx.boost < 0.001) fx.boost = 0
-    const stretch = 1 + fx.boost * 5
+    const p = MathUtils.clamp(journey.t, 0, 1)
+    const flightPulse = continuous && !reducedMotion ? MathUtils.smoothstep(p, .20, .42) * (1 - MathUtils.smoothstep(p, .62, .94)) : 0
+    const warp = Math.max(fx.boost, .16 * flightPulse)
+    const stretch = 1 + warp * 5
     u.uStarGlow.value = (0.05 * STAR.glowIntensity * STAR.starSize) / Math.pow(stretch, 0.6)
     u.uSquash.value = 1 - 1 / (stretch * stretch)
-    u.uWarp.value = fx.boost
+    u.uWarp.value = warp
     const fade = Math.min(1, fx.reveal / 0.35)
     u.uReveal.value = fade * fade * (3 - 2 * fade)
     // Page 1 exit (Rajesh, 24 Nov 2026): as the camera leaves the wheel, every star drifts
     // the same way the wheel goes (left), on the governed timeline, and stops once the
     // wheel is gone. Slower than the wheel: the stars are far away.
-    if (!continuous && LOTUS && CINE3 && !reducedMotion) {
+    if (continuous && !reducedMotion) {
+      ;(u.uFocal.value as Vector2).x = 0.5 - .085 * travel
+    } else if (!continuous && LOTUS && CINE3 && !reducedMotion) {
       ;(u.uFocal.value as Vector2).x = 0.5 - STAR_DRIFT * MathUtils.smootherstep(journey.t, 0.55, 1)
     }
     state.gl.getDrawingBufferSize(buffer)
