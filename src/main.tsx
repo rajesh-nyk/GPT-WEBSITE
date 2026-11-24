@@ -6,6 +6,7 @@ import './lib/fonts'
 import App from './App.tsx'
 import { QualityProvider } from './lib/quality'
 import { Preloader } from './components/Preloader'
+import { RoyalInteractionCursor } from './components/cursor/RoyalInteractionCursor'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -16,6 +17,7 @@ createRoot(document.getElementById('root')!).render(
         <Preloader>
           <App />
         </Preloader>
+        <RoyalInteractionCursor />
       </QualityProvider>
     </MotionConfig>
   </StrictMode>,

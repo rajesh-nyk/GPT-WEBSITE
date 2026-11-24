@@ -1759,13 +1759,66 @@ html {
 .blessing-invocation [lang=en]{margin-top:.6em;font:italic clamp(1.1rem,1.9vw,2rem) Georgia,serif}
 @media(orientation:portrait){.blessing-invocation{left:4%;top:76%}}
 
-/* Living Constellation is the pointer feedback on desktop. Keep native cursor
-   for accessibility settings and leave touch devices unaffected. */
+/* Royal Interaction Cursor: native feedback stays available until the custom
+   pointer is actually visible. No trail, ring or full-screen compositing layer. */
+.royal-interaction-cursor {
+  display: none;
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  z-index: 2147483647;
+  pointer-events: none;
+  visibility: hidden;
+}
 @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) and (forced-colors: none) {
-  html,
-  html *,
-  html *::before,
-  html *::after {
+  html.has-royal-cursor,
+  html.has-royal-cursor *,
+  html.has-royal-cursor *::before,
+  html.has-royal-cursor *::after {
     cursor: none !important;
   }
+  .royal-interaction-cursor { display: block; }
+  .royal-interaction-cursor[data-visible='true'] { visibility: visible; }
+}
+.royal-interaction-cursor__dot,
+.royal-interaction-cursor__spark,
+.royal-interaction-cursor__flash {
+  position: absolute;
+  left: 0;
+  top: 0;
+  translate: -50% -50%;
+  pointer-events: none;
+}
+.royal-interaction-cursor__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff5d7, #e5bd69 56%, #a97a30);
+  box-shadow: 0 0 0 0.7px #251807, 0 0 5px rgb(234 185 91 / 0.42);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+.royal-interaction-cursor__spark {
+  width: 15px;
+  height: 15px;
+  color: #ffe6a7;
+  opacity: 0;
+  transform: scale(0.45);
+  transition: opacity 140ms ease, transform 180ms var(--ease-out-quint);
+  filter: drop-shadow(0 0 2px rgb(247 201 110 / 0.5));
+}
+.royal-interaction-cursor[data-hover='true'] .royal-interaction-cursor__dot {
+  opacity: 0;
+  transform: scale(0.65);
+}
+.royal-interaction-cursor[data-hover='true'] .royal-interaction-cursor__spark {
+  opacity: 1;
+  transform: scale(1);
+}
+.royal-interaction-cursor__flash {
+  width: 18px;
+  height: 18px;
+  color: #fff1bf;
+  opacity: 0;
 }
