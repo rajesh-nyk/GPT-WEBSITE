@@ -1824,8 +1824,8 @@ html {
   opacity: 0;
 }
 
-/* Page 1 → 2: a rising cloud bank with two faster distant layers. Only transforms
-   change during scrolling; all cloud shading is contained in static SVG images. */
+/* Clouds are independent SVG objects. GSAP only transforms their parent banks and
+   individual cloud wrappers; the actual vector artwork is never redrawn by JS. */
 .cloud-transition {
   position: fixed;
   inset: 0;
@@ -1834,31 +1834,31 @@ html {
   pointer-events: none;
   visibility: hidden;
 }
-.cloud-transition__distant,
-.cloud-transition__middle,
-.cloud-transition__curtain {
+.cloud-transition__bank {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   will-change: transform;
 }
-.cloud-transition__distant { height: 75dvh; opacity: 0.52; }
-.cloud-transition__middle { height: 78dvh; opacity: 0.78; }
-.cloud-transition__curtain { height: 180dvh; }
-.cloud-transition__art {
+.cloud-transition__bank--far { height: 65dvh; }
+.cloud-transition__bank--middle { height: 82dvh; }
+.cloud-transition__bank--near { height: 200dvh; }
+.cloud-transition__mist {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent 0%, rgb(255 255 255 / 0.14) 9%, rgb(247 249 255 / 0.78) 19%, #fff 31%, #fff 100%);
+}
+.cloud-transition__cloud {
+  position: absolute;
   display: block;
-  position: relative;
-  left: 50%;
-  translate: -50% 0;
-  width: max(100%, 1050px);
-  max-width: none;
-  height: 100%;
-  object-fit: fill;
+  overflow: visible;
+  will-change: transform;
+  pointer-events: none;
 }
-.cloud-transition__middle .cloud-transition__art {
-  transform: scaleX(-1);
+.cloud-transition__cloud svg { display: block; width: 100%; height: 100%; overflow: visible; }
+@media (max-width: 700px) {
+  /* Retain a natural width/height ratio, not vertically stretched cloud shapes. */
+  .cloud-transition__cloud { min-width: 62vw; }
 }
-.cloud-transition__curtain .cloud-transition__art { height: 65dvh; }
-.cloud-transition__white { height: calc(115dvh + 2px); margin-top: -2px; background: #fff; }
 @media (prefers-reduced-motion: reduce) { .cloud-transition { display: none; } }
