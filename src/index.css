@@ -1834,3 +1834,6 @@ html {
 .scene-fps[data-rate="good"] { color: #7dda58; }
 .scene-fps[data-rate="fair"] { color: #ffcc77; }
 .scene-fps[data-rate="low"] { color: #ff8585; }
+
+/* Vertical touch gestures are handled by paced Lenis; horizontal and pinch stay native. */
+html.cinematic-scroll { touch-action: pan-x pinch-zoom; }

@@ -15,7 +15,7 @@ createRoot(document.getElementById('root')!).render(
         OS setting is on (opacity/colour fades still run, which is reduced-motion safe). */}
     <MotionConfig reducedMotion="user">
       <QualityProvider>
-        <LenisProvider>
+        <LenisProvider paced>
           <Preloader>
             <App />
           </Preloader>
