@@ -5,7 +5,6 @@ import { registerHoverRegion } from '../../lib/hoverRegions'
 import { useSmoothedPointer } from '../../lib/pointer'
 import { useQuality } from '../../lib/quality'
 import { useReducedMotion } from '../../lib/useReducedMotion'
-import { GoldenMotes } from '../hero/GoldenMotes'
 import { heroFx } from '../hero/fx'
 import { QualityEffects } from '../three/QualityEffects'
 import { JourneyDirector } from './journey'
@@ -18,7 +17,7 @@ import { WorldLighting } from './WorldLighting'
 /** The approved page-one scene, without later chapters or their runtime assets. */
 export function PageOneWorld() {
   const reducedMotion = useReducedMotion()
-  const { particles, tier } = useQuality()
+  const { tier } = useQuality()
   const pointer = useSmoothedPointer(2)
   const bloom = useRef<BloomEffect>(null)
   const bloomBase = useRef<number | null>(null)
@@ -55,7 +54,6 @@ export function PageOneWorld() {
       <GalaxyStars reducedMotion={reducedMotion} constellation={tier !== 'low'} />
       <WorldLighting />
       <TravelingWheel pointer={pointer} reducedMotion={reducedMotion} anchorY={anchorY} />
-      {!reducedMotion && <GoldenMotes count={Math.round(particles * 0.08)} pointer={pointer} />}
       <QualityEffects bloomRef={bloom} bloomIntensity={0.45} bloomThreshold={0.86} vignette={0.4} />
     </>
   )
