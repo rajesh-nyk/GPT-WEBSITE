@@ -1823,3 +1823,42 @@ html {
   color: #fff1bf;
   opacity: 0;
 }
+
+/* Page 1 → 2: a rising cloud bank with two faster distant layers. Only transforms
+   change during scrolling; all cloud shading is contained in static SVG images. */
+.cloud-transition {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  overflow: hidden;
+  pointer-events: none;
+  visibility: hidden;
+}
+.cloud-transition__distant,
+.cloud-transition__middle,
+.cloud-transition__curtain {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  will-change: transform;
+}
+.cloud-transition__distant { height: 75dvh; opacity: 0.52; }
+.cloud-transition__middle { height: 78dvh; opacity: 0.78; }
+.cloud-transition__curtain { height: 180dvh; }
+.cloud-transition__art {
+  display: block;
+  position: relative;
+  left: 50%;
+  translate: -50% 0;
+  width: max(100%, 1050px);
+  max-width: none;
+  height: 100%;
+  object-fit: fill;
+}
+.cloud-transition__middle .cloud-transition__art {
+  transform: scaleX(-1);
+}
+.cloud-transition__curtain .cloud-transition__art { height: 65dvh; }
+.cloud-transition__white { height: calc(115dvh + 2px); margin-top: -2px; background: #fff; }
+@media (prefers-reduced-motion: reduce) { .cloud-transition { display: none; } }

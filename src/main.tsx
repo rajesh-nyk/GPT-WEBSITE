@@ -5,6 +5,7 @@ import './index.css'
 import './lib/fonts'
 import App from './App.tsx'
 import { QualityProvider } from './lib/quality'
+import { LenisProvider } from './lib/LenisProvider'
 import { Preloader } from './components/Preloader'
 import { RoyalInteractionCursor } from './components/cursor/RoyalInteractionCursor'
 
@@ -14,10 +15,12 @@ createRoot(document.getElementById('root')!).render(
         OS setting is on (opacity/colour fades still run, which is reduced-motion safe). */}
     <MotionConfig reducedMotion="user">
       <QualityProvider>
-        <Preloader>
-          <App />
-        </Preloader>
-        <RoyalInteractionCursor />
+        <LenisProvider>
+          <Preloader>
+            <App />
+          </Preloader>
+          <RoyalInteractionCursor />
+        </LenisProvider>
       </QualityProvider>
     </MotionConfig>
   </StrictMode>,

@@ -1,5 +1,6 @@
 import { Hero } from './components/hero/Hero'
 import { WorldCanvas } from './components/world/WorldCanvas'
+import { CloudTransition } from './components/world/CloudTransition'
 
 export default function App() {
   return (
@@ -10,9 +11,10 @@ export default function App() {
         <section
           id="page-2"
           aria-label="Page 2"
-          className="relative z-10 min-h-svh w-full bg-white text-ink"
+          className="relative z-10 min-h-dvh w-full bg-white text-ink"
         />
       </main>
+      <CloudTransition />
     </>
   )
 }
