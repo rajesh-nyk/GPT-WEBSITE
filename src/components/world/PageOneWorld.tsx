@@ -14,7 +14,6 @@ import { screenShapes } from './screenShapes'
 import { TravelingWheel } from './TravelingWheel'
 import { WorldBackdrop } from './WorldBackdrop'
 import { WorldLighting } from './WorldLighting'
-import { DivineLight } from './DivineLight'
 
 /** The approved page-one scene, without later chapters or their runtime assets. */
 export function PageOneWorld() {
@@ -53,10 +52,9 @@ export function PageOneWorld() {
     <>
       <JourneyDirector reducedMotion={reducedMotion} />
       <WorldBackdrop />
-      <GalaxyStars reducedMotion={reducedMotion} />
+      <GalaxyStars reducedMotion={reducedMotion} constellation={tier !== 'low'} />
       <WorldLighting />
       <TravelingWheel pointer={pointer} reducedMotion={reducedMotion} anchorY={anchorY} />
-      {!reducedMotion && tier !== 'low' && <DivineLight />}
       {!reducedMotion && <GoldenMotes count={Math.round(particles * 0.08)} pointer={pointer} />}
       <QualityEffects bloomRef={bloom} bloomIntensity={0.45} bloomThreshold={0.86} vignette={0.4} />
     </>

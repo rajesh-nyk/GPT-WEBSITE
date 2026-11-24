@@ -4,6 +4,7 @@ import { AdditiveBlending, MathUtils, ShaderMaterial, Vector2, Vector3 } from 't
 import { CINE3, LOTUS } from '../ganesha/fx'
 import { journey } from './journey'
 import { GALAXY_FRAGMENT } from '../Galaxy'
+import { LivingConstellation } from './LivingConstellation'
 
 /**
  * React Bits Galaxy starfield, drawn INSIDE the 3D world (not as a separate layer) so the
@@ -68,7 +69,7 @@ const fragment =
 /** How far the stars slide left during the page 1 exit, in screen widths. */
 const STAR_DRIFT = 0.25
 
-export function GalaxyStars({ reducedMotion }: { reducedMotion: boolean }) {
+export function GalaxyStars({ reducedMotion, constellation = false }: { reducedMotion: boolean; constellation?: boolean }) {
   const material = useMemo(
     () =>
       new ShaderMaterial({
@@ -122,7 +123,7 @@ export function GalaxyStars({ reducedMotion }: { reducedMotion: boolean }) {
   const fx = useMemo(() => ({ boost: 0, reveal: STAR.intro && !reducedMotion ? 0 : 1 }), [reducedMotion])
   useEffect(() => {
     const move = (e: PointerEvent) => {
-      if (e.pointerType !== 'mouse') return
+      if (e.pointerType !== 'mouse') { pointer.inside = false; return }
       pointer.x = e.clientX / window.innerWidth
       pointer.y = 1 - e.clientY / window.innerHeight
       pointer.inside = true
@@ -136,10 +137,12 @@ export function GalaxyStars({ reducedMotion }: { reducedMotion: boolean }) {
     }
     window.addEventListener('pointermove', move, { passive: true })
     window.addEventListener('pointerdown', down, { passive: true })
+    window.addEventListener('blur', leave)
     document.documentElement.addEventListener('pointerleave', leave)
     return () => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerdown', down)
+      window.removeEventListener('blur', leave)
       document.documentElement.removeEventListener('pointerleave', leave)
     }
   }, [pointer, fx, reducedMotion])
@@ -186,8 +189,11 @@ export function GalaxyStars({ reducedMotion }: { reducedMotion: boolean }) {
   })
 
   return (
-    <mesh renderOrder={-999} frustumCulled={false} material={material}>
-      <planeGeometry args={[2, 2]} />
-    </mesh>
+    <>
+      <mesh renderOrder={-999} frustumCulled={false} material={material}>
+        <planeGeometry args={[2, 2]} />
+      </mesh>
+      {constellation && !reducedMotion && <LivingConstellation galaxy={material} />}
+    </>
   )
 }
