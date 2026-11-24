@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from 'react'
+import { gsap } from '../../lib/gsap'
 import { useFrame } from '@react-three/fiber'
 import { AdditiveBlending, MathUtils, ShaderMaterial, Vector2, Vector3 } from 'three'
 import { CINE3, LOTUS } from '../ganesha/fx'
@@ -117,19 +118,37 @@ export function GalaxyStars({ reducedMotion, constellation = false }: { reducedM
     [],
   )
 
-  // Pointer in 0..1, y up (as Galaxy expects).
-  const pointer = useMemo(() => ({ x: 0.5, y: 0.5, inside: false }), [])
   // Warp boost (click / intro) and intro progress, as in Galaxy.
   const fx = useMemo(() => ({ boost: 0, reveal: STAR.intro && !reducedMotion ? 0 : 1 }), [reducedMotion])
   useEffect(() => {
-    const move = (e: PointerEvent) => {
-      if (e.pointerType !== 'mouse') { pointer.inside = false; return }
-      pointer.x = e.clientX / window.innerWidth
-      pointer.y = 1 - e.clientY / window.innerHeight
-      pointer.inside = true
-    }
+    const mouse = material.uniforms.uMouse.value as Vector2
+    const active = material.uniforms.uMouseActiveFactor
+    // Same fast GSAP easing as the royal cursor; both the stars and their
+    // constellation lines read these identical uniforms, not a second filter.
+    const xTo = gsap.quickTo(mouse, 'x', { duration: 0.075, ease: 'power3.out' })
+    const yTo = gsap.quickTo(mouse, 'y', { duration: 0.075, ease: 'power3.out' })
+    const activeTo = gsap.quickTo(active, 'value', { duration: 0.16, ease: 'power2.out' })
+    let inside = false
+    active.value = 0
     const leave = () => {
-      pointer.inside = false
+      if (!inside) return
+      inside = false
+      activeTo(0)
+    }
+    const move = (e: PointerEvent) => {
+      if (reducedMotion || e.pointerType !== 'mouse') { leave(); return }
+      const x = e.clientX / Math.max(1, window.innerWidth)
+      const y = 1 - e.clientY / Math.max(1, window.innerHeight)
+      if (!inside) {
+        inside = true
+        xTo(x, x)
+        yTo(y, y)
+        mouse.set(x, y)
+        activeTo(1)
+      } else {
+        xTo(x)
+        yTo(y)
+      }
     }
     const down = (e: PointerEvent) => {
       if (!STAR.clickWarp || reducedMotion || e.pointerType !== 'mouse') return
@@ -140,12 +159,16 @@ export function GalaxyStars({ reducedMotion, constellation = false }: { reducedM
     window.addEventListener('blur', leave)
     document.documentElement.addEventListener('pointerleave', leave)
     return () => {
+      xTo.tween.kill()
+      yTo.tween.kill()
+      activeTo.tween.kill()
+      active.value = 0
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerdown', down)
       window.removeEventListener('blur', leave)
       document.documentElement.removeEventListener('pointerleave', leave)
     }
-  }, [pointer, fx, reducedMotion])
+  }, [material, fx, reducedMotion])
 
   const buffer = useMemo(() => new Vector2(), [])
   useFrame((state, delta) => {
@@ -178,14 +201,6 @@ export function GalaxyStars({ reducedMotion, constellation = false }: { reducedM
     state.gl.getDrawingBufferSize(buffer)
     u.uResolution.value.copy(buffer)
 
-    const follow = 1 - Math.exp(-dt / 0.325)
-    const engaged = pointer.inside && !reducedMotion
-    const mouse = u.uMouse.value as Vector2
-    if (engaged) {
-      mouse.x += (pointer.x - mouse.x) * follow
-      mouse.y += (pointer.y - mouse.y) * follow
-    }
-    u.uMouseActiveFactor.value += ((engaged ? 1 : 0) - u.uMouseActiveFactor.value) * follow
   })
 
   return (

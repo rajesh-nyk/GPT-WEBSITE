@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
+import { gsap, MOTION_OK } from '../../lib/gsap'
 
-const DESKTOP = '(hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) and (forced-colors: none)'
+const DESKTOP = `(hover: hover) and (pointer: fine) and ${MOTION_OK} and (forced-colors: none)`
 const INTERACTIVE = 'a[href], button:not(:disabled), [role="button"], [role="link"], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), summary, label, [data-cursor="hover"]'
 
 /** Tiny, precise champagne-gold pointer. Living Constellation remains in the
@@ -17,17 +18,25 @@ export function RoyalInteractionCursor() {
     let x = 0
     let y = 0
     let visible = false
-    let pulse: Animation | null = null
+    let pulse: gsap.core.Tween | null = null
+    gsap.set(el, { x: 0, y: 0, force3D: true })
+    // Reuse the same two tweens; no allocation or React render per pointer event.
+    const xTo = gsap.quickTo(el, 'x', { duration: 0.075, ease: 'power3.out' })
+    const yTo = gsap.quickTo(el, 'y', { duration: 0.075, ease: 'power3.out' })
 
     const hide = () => {
       visible = false
       el.dataset.visible = 'false'
       el.dataset.hover = 'false'
       html.classList.remove('has-royal-cursor')
-      pulse?.cancel()
+      xTo.tween.pause()
+      yTo.tween.pause()
+      pulse?.kill()
+      if (flash.current) gsap.set(flash.current, { opacity: 0 })
     }
     const hover = (target: Element | null) => {
-      el.dataset.hover = String(!!target?.closest(INTERACTIVE))
+      const next = String(!!target?.closest(INTERACTIVE))
+      if (el.dataset.hover !== next) el.dataset.hover = next
     }
     const move = (e: PointerEvent) => {
       if (!media.matches || e.pointerType !== 'mouse' || !html.hasAttribute('data-site-ready')) {
@@ -36,7 +45,15 @@ export function RoyalInteractionCursor() {
       }
       x = e.clientX
       y = e.clientY
-      el.style.transform = `translate3d(${x}px, ${y}px, 0)`
+      if (!visible) {
+        // First movement after enter/blur: snap, never fly in from an old position.
+        xTo(x, x)
+        yTo(y, y)
+        gsap.set(el, { x, y, force3D: true })
+      } else {
+        xTo(x)
+        yTo(y)
+      }
       hover(e.target instanceof Element ? e.target : document.elementFromPoint(x, y))
       if (!visible) {
         visible = true
@@ -49,12 +66,11 @@ export function RoyalInteractionCursor() {
     }
     const down = (e: PointerEvent) => {
       if (!visible || e.pointerType !== 'mouse' || e.button !== 0 || !flash.current) return
-      pulse?.cancel()
-      pulse = flash.current.animate([
-        { opacity: 0.95, transform: 'scale(0.6)' },
-        { opacity: 0.7, transform: 'scale(1)' , offset: 0.3 },
-        { opacity: 0, transform: 'scale(1.45)' },
-      ], { duration: 240, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' })
+      pulse?.kill()
+      pulse = gsap.fromTo(flash.current,
+        { opacity: 0.95, scale: 0.6 },
+        { opacity: 0, scale: 1.45, duration: 0.24, ease: 'power3.out', overwrite: true },
+      )
     }
     window.addEventListener('pointermove', move, { passive: true })
     window.addEventListener('pointerdown', down, { passive: true })
@@ -65,6 +81,8 @@ export function RoyalInteractionCursor() {
     media.addEventListener('change', hide)
     return () => {
       hide()
+      xTo.tween.kill()
+      yTo.tween.kill()
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerdown', down)
       window.removeEventListener('pointercancel', hide)
