@@ -10,9 +10,6 @@ import { PageOneWorld } from './PageOneWorld'
  * sections.
  */
 export function WorldCanvas() {
-  return () => observer.disconnect()
-  }, [])
-
   return (
     <div aria-hidden={false} className="pointer-events-none fixed inset-0 z-0">
       <SceneCanvas
