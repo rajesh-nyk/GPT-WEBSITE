@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { MathUtils } from 'three'
 import type { BloomEffect } from 'postprocessing'
 import { registerHoverRegion } from '../../lib/hoverRegions'
 import { useSmoothedPointer } from '../../lib/pointer'
@@ -8,7 +7,7 @@ import { useQuality } from '../../lib/quality'
 import { useReducedMotion } from '../../lib/useReducedMotion'
 import { heroFx } from '../hero/fx'
 import { QualityEffects } from '../three/QualityEffects'
-import { JourneyDirector, journey } from './journey'
+import { JourneyDirector } from './journey'
 import { GalaxyStars } from './GalaxyStars'
 import { screenShapes } from './screenShapes'
 import { TravelingWheel } from './TravelingWheel'
@@ -26,17 +25,6 @@ export function PageOneWorld() {
   const frameStats = useRef({ frames: 0, elapsed: 0, slow: 0 })
 
   useEffect(() => registerHoverRegion('wheel', () => screenShapes.wheel), [])
-
-  // Reference clip (5–6 seconds): the camera descends vertically through one
-  // continuous scene. The wheel stays in world space and leaves through the top.
-  // No diagonal departure, cloud overlay, cut, or separately timed animation.
-  useFrame(({ camera }) => {
-    const p = MathUtils.clamp(journey.t, 0, 1)
-    const travel = reducedMotion ? 0 : MathUtils.smootherstep(p, .16, .94)
-    const restingHeight = 12 * Math.tan(35 * Math.PI / 360)
-    camera.position.set(0, -restingHeight * 1.22 * travel, 6 + .34 * Math.sin(Math.PI * travel))
-    camera.updateMatrixWorld()
-  }, -5)
 
   useFrame((_, delta) => {
     const effect = bloom.current

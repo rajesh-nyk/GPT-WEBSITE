@@ -78,15 +78,12 @@ export function TravelingWheel({
     const pxToWorld = viewport.height / size.height
 
     if (pageTransition) {
-      // Lenis + the hero ScrollTrigger already smooth the scroll; a second
-      // governor would make the wheel lag behind the camera.
+      // Fixed camera. Page-one content moves by the exact native scroll offset.
+      // Lenis owns the pace; there is no separate position tween.
       const p = MathUtils.clamp(journey.target, 0, 1)
       const turn = MathUtils.smootherstep(p, 0.015, 0.49)
-      // The camera, not a separate object animation, carries the wheel out of shot.
-      const disappear = MathUtils.smootherstep(p, 0.86, 0.98)
-      const shown = 1 - disappear
       const idle = 1 - MathUtils.smootherstep(p, 0, 0.12)
-      g.position.set(0, heroY, 0)
+      g.position.set(0, heroY + window.scrollY * pxToWorld, 0)
       g.scale.setScalar(scale)
       g.rotation.set(reducedMotion ? 0 : -pointer.y * MAX_TILT * idle, 0, 0)
       s.rotation.y = reducedMotion ? 0 : turn * Math.PI * 2
@@ -94,9 +91,9 @@ export function TravelingWheel({
         roll.current.rotation.z -= dt * Math.PI * 2 / SECONDS_PER_TURN * idle * (1 - HOVER_SLOWDOWN * heroFx.hover)
       }
       entrance.current = reducedMotion ? 1 : Math.min(1, entrance.current + dt / ENTRANCE_SECONDS)
-      const alpha = reducedMotion ? (p < 0.5 ? 1 : 0) : shown * (1 - (1 - entrance.current) ** 3)
-      g.visible = alpha > 0.004
-      wheelState.glow = alpha
+      const alpha = reducedMotion ? 1 : 1 - (1 - entrance.current) ** 3
+      g.visible = p < 0.999 && alpha > 0.004
+      wheelState.glow = g.visible ? alpha : 0
       wheelState.ahead = false
       fade.current ??= SolidFade.from(s, { occludes: true })
       fade.current?.set(alpha)
@@ -104,7 +101,7 @@ export function TravelingWheel({
         g.getWorldPosition(center)
         // Preserve the original sun and backdrop in screen space throughout.
         const circle = projectCircle(center, HERO_DIAMETER_UNITS * g.scale.x / 2, camera, size.width, size.height)
-        if (p < 0.02) {
+        if (p < 0.001) {
           toUv(center, camera, glowCenters.hero)
           toUv(center, camera, glowCenters.sun)
           glowCenters.sunRadius = circle.r / size.height
