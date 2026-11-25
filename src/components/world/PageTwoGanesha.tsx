@@ -84,23 +84,25 @@ const AURA_FRAGMENT = /* glsl */ `
     }
     return value / 0.9375;
   }
-  vec4 flowingMist(vec2 uv, float edge) {
-    // Two counter-flowing fields, following the supplied shader's speed.
+  vec4 flowingMist(vec2 head, float edge) {
+    // Match the ray origin: model y = 0.235, rather than the plane centre.
+    // Extend the envelope beyond the ears and crown so the sculpture cannot
+    // hide the whole effect. Keep the cloud behind the existing rays.
     float t = uMistTime * 0.15;
-    vec2 p = (uv - 0.5) * vec2(1.64, 1.0);
-    vec2 q = p * 3.4 + vec2(t * 0.3, t * 0.1);
-    vec2 s = p * 2.8 + vec2(-t * 0.2, t * 0.15);
+    vec2 p = head / vec2(0.245, 0.165);
+    vec2 q = p * 1.65 + vec2(2.7, 4.1) + vec2(t * 0.3, t * 0.1);
+    vec2 s = p * 1.35 + vec2(6.2, 1.8) + vec2(-t * 0.2, t * 0.15);
     float n1 = mistFbm(q);
     float n2 = mistFbm(s + vec2(n1 * 1.4, n1 * 0.9));
-    float density = smoothstep(0.30, 0.70, n2);
-    float wisps = smoothstep(0.47, 0.78, n2) * smoothstep(0.30, 0.67, n1);
-    // User's deep blue / indigo / purple palette with a restrained luminous crest.
-    // RGB values are display-space equivalents of the supplied hex colours.
-    vec3 color = mix(vec3(0.059, 0.102, 0.227), vec3(0.102, 0.102, 0.290), density);
-    color = mix(color, vec3(0.227, 0.165, 0.416), n1 * 0.6);
-    color = mix(color, vec3(0.38, 0.33, 0.65), wisps * 0.64);
-    float boundary = 1.0 - smoothstep(0.27, 0.83, length(p * vec2(1.05, 1.25)));
-    float alpha = density * 0.65 * edge * boundary * uFade;
+    float density = smoothstep(0.24, 0.68, n2);
+    float wisps = smoothstep(0.36, 0.73, n2) * (0.45 + 0.55 * n1);
+    // Brighter violet crests, with indigo retained in the cloud shadows.
+    vec3 color = mix(vec3(0.10, 0.07, 0.27), vec3(0.42, 0.20, 0.72), density);
+    color = mix(color, vec3(0.67, 0.43, 0.98), wisps);
+    float radius = length(p);
+    float boundary = 1.0 - smoothstep(0.62, 1.55, radius);
+    // Give the mist a visible body around the head even in low noise regions.
+    float alpha = (0.28 + 0.72 * density) * 0.65 * edge * boundary * uFade;
     return vec4(color, alpha);
   }
   #endif
@@ -159,7 +161,7 @@ const AURA_FRAGMENT = /* glsl */ `
     #ifdef FLOWING_MIST
     // Straight-alpha source-over composition: existing golden rays and halo
     // sit in front of the mist. No new geometry, texture or WebGL render pass.
-    vec4 atmosphere = flowingMist(vUv, edge);
+    vec4 atmosphere = flowingMist(head, edge);
     float backAlpha = atmosphere.a * (1.0 - alpha);
     float combinedAlpha = alpha + backAlpha;
     color = (color * alpha + atmosphere.rgb * backAlpha) / max(combinedAlpha, 0.0001);
