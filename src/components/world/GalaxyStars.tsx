@@ -44,9 +44,12 @@ const hex = (h: string) =>
 const INTRO_SECONDS = 2.2
 
 const vertex = /* glsl */ `
+  uniform vec2 uClipTop;
   void main() {
     // Just in front of the backdrop (0.9999), behind every model.
-    gl_Position = vec4(position.xy, 0.9998, 1.0);
+    vec2 p = position.xy;
+    if (p.y > 0.0) p.y = mix(uClipTop.x, uClipTop.y, step(0.0, p.x));
+    gl_Position = vec4(p, 0.9998, 1.0);
   }
 `
 
@@ -70,7 +73,7 @@ const fragment =
 /** How far the stars slide left during the page 1 exit, in screen widths. */
 const STAR_DRIFT = 0.25
 
-export function GalaxyStars({ reducedMotion, constellation = false, continuous = false, skipIntro = false }: { reducedMotion: boolean; constellation?: boolean; continuous?: boolean; skipIntro?: boolean }) {
+export function GalaxyStars({ reducedMotion, constellation = false, continuous = false, skipIntro = false, clipTop }: { reducedMotion: boolean; constellation?: boolean; continuous?: boolean; skipIntro?: boolean; clipTop?: Vector2 }) {
   const material = useMemo(
     () =>
       new ShaderMaterial({
@@ -85,6 +88,7 @@ export function GalaxyStars({ reducedMotion, constellation = false, continuous =
         depthTest: true,
         toneMapped: false,
         uniforms: {
+          uClipTop: { value: clipTop ?? new Vector2(1, 1) },
           uTime: { value: 0 },
           uResolution: { value: new Vector2(1, 1) },
           uFocal: { value: new Vector2(0.5, 0.5) },
@@ -115,7 +119,7 @@ export function GalaxyStars({ reducedMotion, constellation = false, continuous =
           uOpacity: { value: STAR.opacity },
         },
       }),
-    [skipIntro],
+    [skipIntro, clipTop],
   )
 
   // Warp boost (click / intro) and intro progress, as in Galaxy.
