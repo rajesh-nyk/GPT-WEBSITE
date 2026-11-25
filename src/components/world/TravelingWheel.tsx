@@ -81,7 +81,8 @@ export function TravelingWheel({
       // The entire page panel (including the canvas) slides in document space.
       // Keep the wheel anchored within its own canvas; scroll only rotates Y.
       const scrollY = window.scrollY
-      const span = document.getElementById('hero')?.offsetHeight || size.height
+      // The canvas fills the same chapter as the hero; preserve offsetHeight rounding.
+      const span = Math.round(size.height)
       const p = MathUtils.clamp(scrollY / Math.max(1, span), 0, 1)
       // A constant angular displacement per pixel: 360 degrees per hero height.
       // No separate easing, delay, or time-driven rotation on this axis.
