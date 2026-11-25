@@ -737,7 +737,7 @@ export function PageTwoGanesha() {
         </footer>
       )}
       {!MANTRA_RISE && (
-        <div ref={invocation} className="mantra-ticker-stage" data-revealed="false" aria-label="Ganesha invocation">
+        <section ref={invocation} className="mantra-ticker-stage" data-revealed="false" aria-label="Ganesha invocation">
           <style>{`
             .mantra-ticker-stage { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
             .mantra-ticker {
@@ -768,7 +768,7 @@ export function PageTwoGanesha() {
           `}</style>
           <MantraTicker language="or" phrase="ଶ୍ରୀ ଗଣେଶାୟ ନମଃ" />
           <MantraTicker language="en" phrase="Sri Ganeshaya Namah" />
-        </div>
+        </section>
       )}
     </div>
   )
