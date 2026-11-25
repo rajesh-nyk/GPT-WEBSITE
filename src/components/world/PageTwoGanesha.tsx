@@ -1,7 +1,7 @@
 import { Environment, Lightformer } from '@react-three/drei'
 import { useFrame, useThree } from '@react-three/fiber'
 import { useLayoutEffect, useMemo, useRef, type RefObject } from 'react'
-import { Group, MathUtils, Mesh, Vector2, Vector3, type BufferAttribute, type BufferGeometry, type MeshLambertMaterial, type MeshStandardMaterial, type Object3D, type Points, type ShaderMaterial } from 'three'
+import { AdditiveBlending, BufferAttribute, BufferGeometry, Group, MathUtils, Mesh, Points, ShaderMaterial, Vector2, Vector3, type MeshLambertMaterial, type MeshStandardMaterial, type Object3D } from 'three'
 import { ScrollTrigger } from '../../lib/gsap'
 import { useReducedMotion } from '../../lib/useReducedMotion'
 import { Model, modelMetalnessMap } from '../Model'
@@ -32,26 +32,6 @@ const AURA_ENABLED = typeof window === 'undefined' ||
 // and rises up from below the bottom edge instead of a 12px nudge.
 const MANTRA_RISE = typeof window !== 'undefined' &&
   new URLSearchParams(window.location.search).has('mantra-rise')
-// Preview ?mantra-rise: each mantra line sits on a frosted-glass plate.
-const GLASS = MANTRA_RISE ? {
-  width: '100%',
-  padding: '3dvh 0',
-  borderRadius: 0,
-  background: 'linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01))',
-  borderBlock: '0.25px solid rgba(255, 255, 255, 0.2)',
-  WebkitBackdropFilter: 'blur(6px)',
-  backdropFilter: 'blur(6px)',
-} as const : {}
-// Preview ?mantra-rise: letters filled with see-through glass (a faint white sheen,
-// brighter at the top, plus a thin light edge) instead of solid colour.
-const GLASS_TEXT = MANTRA_RISE ? {
-  color: 'transparent',
-  backgroundImage: 'linear-gradient(180deg, rgba(255,255,255,0.42) 0%, rgba(255,255,255,0.14) 55%, rgba(255,255,255,0.08) 100%)',
-  WebkitBackgroundClip: 'text',
-  backgroundClip: 'text',
-  WebkitTextStroke: '1px rgba(255,255,255,0.55)',
-  textShadow: 'none',
-} as const : {}
 const AURA_SETTINGS = { aura: 0.22, rays: 0.36, lotus: 0.21 } as const
 // Optional comparison: shine=0 removes the warm highlight within the shafts.
 const RAY_SHINE = typeof window !== 'undefined' &&
@@ -168,7 +148,7 @@ const SWAY_ANGLE = MathUtils.degToRad(1.2)
 const SEAT_HEIGHT = 0.08
 const FRAMING_ASPECT_LIMIT = 1.16
 const FULL_LENS = 2 * Math.tan(MathUtils.degToRad(35 / 2))
-const petalBreath = new WeakMap<LotusMesh['material'], { value: number }>()
+const petalBreath = new WeakMap<LotusMesh['material'], { value: Vector2 }>()
 export const ganeshaPosition = { sample: null as (() => Vector3 | null) | null }
 
 /**
@@ -222,22 +202,33 @@ function applyCondense(shader: { uniforms: Record<string, { value: unknown }>; v
 }
 
 function gradePetals(material: LotusMesh['material']) {
-  const opening = { value: 0 }
+  // x: scroll-gated bloom strength; y: continuous breathing phase.
+  const opening = { value: new Vector2(0, 0) }
   petalBreath.set(material, opening)
-  material.customProgramCacheKey = () => AURA_ENABLED ? 'page-two-lotus-blush-breath-aura' : 'page-two-lotus-blush-breath'
+  material.customProgramCacheKey = () => AURA_ENABLED ? 'page-two-lotus-organic-bloom-aura' : 'page-two-lotus-organic-bloom'
   material.onBeforeCompile = (shader) => {
     applyCondense(shader)
     shader.uniforms.uPetalBreath = opening
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vPetalPosition;\nvarying vec3 vPetalNormal;\nuniform float uPetalBreath;')
+      .replace('#include <common>', '#include <common>\nvarying vec3 vPetalPosition;\nvarying vec3 vPetalNormal;\nuniform vec2 uPetalBreath;')
       .replace('#include <begin_vertex>', /* glsl */ `
         #include <begin_vertex>
         vPetalPosition = position;
         vPetalNormal = normal;
-        // The outermost join vertex is at radius 0.126. Flex only past the join.
-        float tip = smoothstep(0.129, 0.20, length(position.xz)) * smoothstep(0.025, 0.09, position.y);
-        transformed.xz += position.xz * (0.052 * tip * uPetalBreath);
-        transformed.y -= 0.009 * tip * uPetalBreath;
+        // Preserve every shared seat vertex; flex the free petals only.
+        float radius = length(position.xz);
+        float tip = smoothstep(0.129, 0.20, radius);
+        if (tip > 0.0) {
+          float angle = atan(position.z, position.x);
+          // A small periodic phase offset makes adjacent flower regions open
+          // in succession without a seam or independent floating movement.
+          float stagger = 0.38 * sin(angle * 3.0) + 0.17 * cos(angle * 5.0);
+          float cycle = 0.5 - 0.5 * cos(uPetalBreath.y + stagger);
+          float bloom = smoothstep(0.0, 1.0, cycle) * uPetalBreath.x;
+          float flex = tip * mix(0.75, 1.0, smoothstep(0.025, 0.09, position.y));
+          transformed.xz += position.xz * (0.10 * flex * bloom);
+          transformed.y -= 0.015 * flex * bloom;
+        }
       `)
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>\nvarying vec3 vPetalPosition;\nvarying vec3 vPetalNormal;\n${lotusGrade}`)
@@ -460,6 +451,150 @@ function prepareLotus(root: Object3D) {
   petals.add(seat)
 }
 
+// Sample the real outer petal mesh so pollen begins on the moving flower.
+function makePetalPollen(petals: LotusMesh) {
+  const source = petals.geometry.getAttribute('position')
+  const normals = petals.geometry.getAttribute('normal')
+  const sectors = 24
+  type PetalSample = { x: number; y: number; z: number; nx: number; ny: number; nz: number; score: number }
+  const tips: (PetalSample | undefined)[] = Array(sectors)
+  const samples: PetalSample[][] = Array.from({ length: sectors }, () => [])
+  for (let i = 0; i < source.count; i++) {
+    const x = source.getX(i), y = source.getY(i), z = source.getZ(i)
+    const radius = Math.hypot(x, z)
+    if (radius < 0.145 || y < 0.018) continue
+    const angle = Math.atan2(z, x)
+    const bin = Math.min(sectors - 1, Math.floor((angle + Math.PI) / (2 * Math.PI) * sectors))
+    const nx = normals?.getX(i) ?? 0, ny = normals?.getY(i) ?? 1, nz = normals?.getZ(i) ?? 0
+    // Prefer exposed upper petal ridges instead of underside vertices.
+    const score = radius + 0.64 * y + 0.018 * Math.max(0, ny)
+    const sample = { x, y, z, nx, ny, nz, score }
+    if (!tips[bin] || score > tips[bin]!.score) tips[bin] = sample
+    if (ny > 0.12) samples[bin].push(sample)
+  }
+  const roots: ({ x: number; y: number; z: number; score: number } | undefined)[] = Array(sectors)
+  // Recover the root-to-tip pitch from the actual mesh in each angular sector.
+  for (let i = 0; i < source.count; i++) {
+    const x = source.getX(i), y = source.getY(i), z = source.getZ(i)
+    const r = Math.hypot(x, z)
+    if (r < 0.13 || r > 0.165 || y < 0.018) continue
+    const bin = Math.min(sectors - 1, Math.floor((Math.atan2(z, x) + Math.PI) / (2 * Math.PI) * sectors))
+    const tip = tips[bin]
+    if (!tip) continue
+    const tr = Math.hypot(tip.x, tip.z)
+    if (r > tr - 0.02) continue
+    const score = 0.65 * (x * tip.x + z * tip.z) / (r * tr) - Math.abs(r - tr + 0.045) + 0.22 * y
+    if (!roots[bin] || score > roots[bin]!.score) roots[bin] = { x, y, z, score }
+  }
+  const positions: number[] = []
+  const petalRoots: number[] = []
+  const surfaceNormals: number[] = []
+  const seeds: number[] = []
+  for (let i = 0; i < sectors; i++) {
+    const tip = tips[i]
+    if (!tip) continue
+    const root = roots[i] ?? { x: tip.x * 0.72, y: tip.y - 0.008, z: tip.z * 0.72 }
+    // Spread births along real exposed vertices, rather than stacking ten
+    // additive sprites on one tip. Use only points close to the outer ridge.
+    const ridge = samples[i].filter(s =>
+      Math.hypot(s.x, s.z) >= Math.hypot(tip.x, tip.z) - 0.035 &&
+      s.score >= tip.score - 0.055
+    ).sort((a, b) => b.score - a.score)
+    const selected: PetalSample[] = []
+    for (const sample of ridge) {
+      if (selected.every(s => Math.hypot(s.x - sample.x, s.y - sample.y, s.z - sample.z) >= 0.0035)) {
+        selected.push(sample)
+        if (selected.length === 10) break
+      }
+    }
+    if (!selected.length) selected.push(tip)
+    for (let j = 0; j < 10; j++) {
+      const sample = selected[j % selected.length]
+      positions.push(sample.x, sample.y, sample.z)
+      petalRoots.push(root.x, root.y, root.z)
+      surfaceNormals.push(sample.nx, sample.ny, sample.nz)
+      // Spread the births across the opening rather than firing in a burst.
+      seeds.push((j + ((i * 73 + j * 37 + 19) % 113) / 113) / 10, ((i * 41 + j * 59 + 7) % 101) / 101)
+    }
+  }
+  const geometry = new BufferGeometry()
+  geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3))
+  geometry.setAttribute('aSeed', new BufferAttribute(new Float32Array(seeds), 2))
+  geometry.setAttribute('aSurfaceNormal', new BufferAttribute(new Float32Array(surfaceNormals), 3))
+  geometry.setAttribute('aPetalRoot', new BufferAttribute(new Float32Array(petalRoots), 3))
+  const material = new ShaderMaterial({
+    transparent: true, depthWrite: false, depthTest: true,
+    blending: AdditiveBlending, toneMapped: false,
+    uniforms: { uPhase: { value: 0 }, uBloom: { value: 0 }, uStrength: { value: 0 }, uDpr: { value: 1 } },
+    vertexShader: /* glsl */ `
+      attribute vec2 aSeed;
+      attribute vec3 aSurfaceNormal;
+      attribute vec3 aPetalRoot;
+      uniform float uPhase, uBloom, uStrength, uDpr;
+      varying float vAlpha, vTint;
+      void main() {
+        float radius = length(position.xz);
+        float angle = atan(position.z, position.x);
+        float stagger = 0.38 * sin(angle * 3.0) + 0.17 * cos(angle * 5.0);
+        // Release only on the opening half of the same 5.6-second bloom cycle.
+        float birth = 0.30 + aSeed.x * 2.35 - stagger * 5.6 / 6.2831853;
+        float life = 2.1 + aSeed.y * 0.65;
+        // Invisible at the loop seam; fade in on the petal before detaching.
+        float age = mod(uPhase - birth + 0.18 + 5.6, 5.6) - 0.18;
+        float t = clamp(age / life, 0.0, 1.0);
+        float birthCycle = 0.5 - 0.5 * cos(birth * 6.2831853 / 5.6 + stagger);
+        float currentCycle = 0.5 - 0.5 * cos(uPhase * 6.2831853 / 5.6 + stagger);
+        // Follow the exact animated vertex until birth, then release from
+        // that position continuously instead of chasing the moving petal.
+        float bloom = smoothstep(0.0, 1.0, age <= 0.0 ? currentCycle : birthCycle) * uBloom;
+        float flex = smoothstep(0.129, 0.20, radius) * mix(0.75, 1.0, smoothstep(0.025, 0.09, position.y));
+        vec3 origin = position;
+        origin.xz *= 1.0 + 0.10 * flex * bloom;
+        origin.y -= 0.015 * flex * bloom;
+        vec2 radial = position.xz / max(radius, 0.0001);
+        vec2 tangent = vec2(-radial.y, radial.x);
+        // Launch along the bent petal's root-to-tip axis, not straight up.
+        float rf = smoothstep(0.129, 0.20, length(aPetalRoot.xz)) * mix(0.75, 1.0, smoothstep(0.025, 0.09, aPetalRoot.y));
+        vec3 root = aPetalRoot;
+        root.xz *= 1.0 + 0.10 * rf * bloom;
+        root.y -= 0.015 * rf * bloom;
+        vec3 axis = normalize(origin - root + vec3(radial.x, 0.0, radial.y) * 0.001);
+        vec3 normal = normalize(vec3(aSurfaceNormal.x, max(0.12, aSurfaceNormal.y), aSurfaceNormal.z));
+        // Ease off the surface with near-zero initial velocity. Retain the
+        // petal direction, then allow a small, gradual organic drift.
+        float lift = smoothstep(0.0, 0.20, t);
+        float travel = (t * t * (2.0 - t)) * (0.045 + 0.035 * aSeed.y);
+        vec3 p = origin + normal * (0.0006 + 0.004 * lift) + axis * travel;
+        p.xz += tangent * (aSeed.x - 0.5) * 0.014 * t * t;
+        p.y += (0.002 + 0.006 * aSeed.x) * t * t;
+        float appear = mix(0.30 * smoothstep(-0.18, 0.0, age), 1.0, smoothstep(0.0, 0.14, t));
+        vAlpha = appear * (1.0 - smoothstep(0.50, 1.0, t)) * uStrength;
+        vTint = aSeed.y;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+        gl_PointSize = (1.5 + 1.5 * aSeed.x * aSeed.x) * min(uDpr, 2.0) * (1.0 - 0.32 * t);
+      }`,
+    fragmentShader: /* glsl */ `
+      varying float vAlpha, vTint;
+      void main() {
+        float r = length(gl_PointCoord - vec2(0.5)) * 2.0;
+        if (r >= 1.0 || vAlpha < 0.001) discard;
+        float core = exp(-r * r * 22.0);
+        float halo = exp(-r * r * 3.5) * (1.0 - smoothstep(0.60, 1.0, r));
+        vec3 gold = vec3(1.0, 0.72, 0.36);
+        vec3 lavender = vec3(0.72, 0.49, 1.0);
+        vec3 color = mix(gold, lavender, smoothstep(0.45, 0.85, vTint));
+        color = mix(color, vec3(1.0, 0.95, 0.85), core * 0.75);
+        gl_FragColor = vec4(color * 1.10, min(1.0, 0.92 * core + 0.30 * halo) * vAlpha);
+      }`,
+  })
+  const points = new Points(geometry, material)
+  points.name = 'lotus-petal-pollen'
+  points.frustumCulled = false
+  points.renderOrder = 3
+  petals.add(points)
+  return points
+}
+
 function LotusFigure({ frame, invocation }: {
   frame: RefObject<HTMLDivElement | null>
   invocation: RefObject<HTMLElement | null>
@@ -471,6 +606,7 @@ function LotusFigure({ frame, invocation }: {
   const model = useRef<Group>(null)
   const auraMaterial = useRef<ShaderMaterial>(null)
   const foregroundMist = useRef<ShaderMaterial>(null)
+  const pollen = useRef<Points<BufferGeometry, ShaderMaterial> | null>(null)
   const auraUniforms = useMemo(() => ({
     uTime: { value: 0 }, uFade: { value: 0 },
     uAura: { value: AURA_SETTINGS.aura }, uRays: { value: AURA_SETTINGS.rays },
@@ -486,6 +622,8 @@ function LotusFigure({ frame, invocation }: {
   const idleTime = useRef(0)
   const mistTime = useRef(0)
   const painted = useRef(false)
+  const tickerReveal = useRef(0)
+  const tickerArmed = useRef(false)
   const haloPoint = useRef(new Vector2()).current
   const facePoint = useRef(new Vector3()).current
   const modelPoint = useRef(new Vector3()).current
@@ -536,6 +674,16 @@ function LotusFigure({ frame, invocation }: {
     }
   }, [invalidate, reducedMotion])
 
+  useLayoutEffect(() => () => {
+    const points = pollen.current
+    if (points) {
+      points.removeFromParent()
+      points.geometry.dispose()
+      points.material.dispose()
+      pollen.current = null
+    }
+  }, [])
+
   useFrame(({ viewport }, delta) => {
     const petals = model.current?.getObjectByName(PETALS) as LotusMesh | undefined
     const seat = petals?.getObjectByName(SEAT)
@@ -564,13 +712,18 @@ function LotusFigure({ frame, invocation }: {
     }
     const inhale = (0.5 - 0.5 * Math.cos(idleTime.current * 2 * Math.PI / 5.6)) * idle
     const sway = Math.sin(idleTime.current * 2 * Math.PI / 9) * SWAY_ANGLE * idle
-    const bodyWidth = 1 + inhale * 0.008
+    // Gentle chest expansion, anchored above the seated mesh joins.
+    const bodyWidth = 1 + inhale * 0.024
     ganeshaPose.uFigureTurn.value = turn
     ganeshaPose.uFigureSway.value = sway
-    ganeshaPose.uFigureStretch.value.set(bodyWidth, 1 + inhale * 0.024)
+    ganeshaPose.uFigureStretch.value.set(bodyWidth, 1 + inhale * 0.034)
     const opening = petalBreath.get(petals.material)
-    // Hover removed (his request, 25 Nov 2026): the petals stay at rest.
-    if (opening) opening.value = 0
+    // Bloom in place with Ganesha's breathing; fade the motion as page 2 exits.
+    // No movement at the base or in reduced-motion mode.
+    if (opening) opening.value.set(
+      idle * (1 - MathUtils.smootherstep(departureProgress, 0.0, 0.65)),
+      (idleTime.current * 2 * Math.PI / 5.6) % (2 * Math.PI),
+    )
     // Stagger the portrait, the metal catchlights, and the invocation on the paced scroll.
     const faceLight = MathUtils.smootherstep(progress, 0.31, 0.55)
     const bodyLight = MathUtils.smootherstep(progress, 0.46, 0.82)
@@ -585,42 +738,61 @@ function LotusFigure({ frame, invocation }: {
     cloudFade.progress = progress
     cloudFade.exit = exitFade
     // He condenses as page 2 arrives and thins away on exit.
-    // Slow (his ask): spread over most of the arrival, and never faster than about 4.5 s to
-    // form however fast the scroll moves (reversing may be quicker).
+    // Keep the paced condensation during arrival, but finish it with scroll as
+    // page 2 reaches center so the fully revealed figure and ticker stay synchronized.
     if (CLOUDS_ENABLED && !reducedMotion) {
       const target = MathUtils.smoothstep(progress, 0.08, 0.96) * MathUtils.smoothstep(exitFade, 0.0, 1.0)
       const step = (target > condense.value ? 0.22 : 0.8) * dt
       condense.value += MathUtils.clamp(target - condense.value, -step, step)
-      if (condense.value !== target) invalidate()
+      // Catch up smoothly over the last part of the arrival, not on an independent timer.
+      const centeredReveal = MathUtils.smootherstep(progress, 0.76, 0.995)
+        * MathUtils.smoothstep(exitFade, 0, 1)
+      condense.value = Math.max(condense.value, Math.min(target, centeredReveal))
+      if (Math.abs(condense.value - target) > 0.0001) invalidate()
     } else condense.value = 1
+    // Pollen follows the actual lotus transform and the same opening cycle.
+    if (!reducedMotion && !pollen.current && opening) pollen.current = makePetalPollen(petals)
+    if (pollen.current) {
+      const uniforms = pollen.current.material.uniforms
+      uniforms.uPhase.value = idleTime.current % 5.6
+      uniforms.uBloom.value = opening?.value.x ?? 0
+      uniforms.uStrength.value = reducedMotion ? 0 : (opening?.value.x ?? 0) * fade * condense.value
+      uniforms.uDpr.value = viewport.dpr
+    }
     if (invocation.current) {
-      const spreadFade = MathUtils.smoothstep(progress, 0.35, 0.96) * exitFade
-      const titleFade = MathUtils.smoothstep(progress, 0.59, 0.73) * exitFade
-      const opacity = (MANTRA_RISE ? spreadFade : titleFade).toFixed(3)
-      if (invocation.current.style.opacity !== opacity) {
-        invocation.current.style.opacity = MANTRA_RISE ? '1' : opacity
-        if (MANTRA_RISE) {
-          // Each word rises out of its own line in turn; a light sweep crosses the letters.
-          const el = invocation.current
+      const el = invocation.current
+      if (MANTRA_RISE) {
+        const spreadFade = MathUtils.smoothstep(progress, 0.35, 0.96) * exitFade
+        const key = spreadFade.toFixed(3)
+        if (el.style.getPropertyValue('--mantra-spread') !== key) {
+          el.style.opacity = '1'
+          el.style.setProperty('--mantra-spread', key)
           ;[0, 1, 2].forEach((i) => {
             const k = MathUtils.smoothstep(spreadFade, i * 0.16, i * 0.16 + 0.6)
             el.style.setProperty(`--r${i}`, (1 - k).toFixed(3))
           })
           el.style.setProperty('--sw', (1 - MathUtils.smoothstep(spreadFade, 0.25, 1)).toFixed(3))
         }
-      }
-      if (!MANTRA_RISE && !reducedMotion) {
-        const fragments = MathUtils.smootherstep(progress, 0.63, 0.81).toFixed(3)
-        const fill = MathUtils.smootherstep(progress, 0.76, 0.91).toFixed(3)
-        const romanization = MathUtils.smootherstep(progress, 0.84, 0.95).toFixed(3)
-        const style = invocation.current.style
-        if (style.getPropertyValue('--mantra-fragments') !== fragments) {
-          style.setProperty('--mantra-fragments', fragments)
+      } else {
+        // First entrance still begins at centered arrival. Once shown, the
+        // same scroll envelope scrubs the exit and any reversal without a CSS timer.
+        const envelope = MathUtils.smootherstep(progress, 0.88, 0.995)
+          * (1 - MathUtils.smootherstep(departureProgress, 0, 0.13))
+        if (progress >= 0.995 && departureProgress < 0.035) tickerArmed.current = true
+        if (envelope <= 0.001) tickerArmed.current = false
+        const target = reducedMotion ? 1 : tickerArmed.current ? envelope : 0
+        const current = tickerReveal.current
+        const damped = reducedMotion ? target : MathUtils.damp(current, target, target > current ? 6 : 24, dt)
+        const next = Math.abs(damped - target) < 0.002 ? target : damped
+        tickerReveal.current = next
+        if (next !== target) invalidate()
+        const key = next.toFixed(3)
+        if (el.style.getPropertyValue('--mantra-ticker-reveal') !== key) {
+          el.style.setProperty('--mantra-ticker-reveal', key)
         }
-        if (style.getPropertyValue('--mantra-fill') !== fill) style.setProperty('--mantra-fill', fill)
-        if (style.getPropertyValue('--mantra-romanization') !== romanization) {
-          style.setProperty('--mantra-romanization', romanization)
-        }
+        // Keep the horizontal text moving throughout the exit; pause only offscreen.
+        const visible = next > 0.001 ? 'true' : 'false'
+        if (el.dataset.revealed !== visible) el.dataset.revealed = visible
       }
     }
     if (AURA_ENABLED && auraMaterial.current) {
@@ -719,6 +891,25 @@ function LotusFigure({ frame, invocation }: {
   )
 }
 
+function MantraTicker({ language, phrase }: { language: 'or' | 'en'; phrase: string }) {
+  return (
+    <div className={`mantra-ticker mantra-ticker--${language}`} lang={language}>
+      <span className="sr-only">{phrase}</span>
+      <div className="mantra-ticker__track" aria-hidden="true">
+        {[0, 1].map(group => (
+          <div className="mantra-ticker__group" key={group}>
+            {[0, 1, 2, 3].map(i => (
+              <span className="mantra-ticker__item" key={i}>
+                {phrase}<span className="mantra-ticker__separator">✧</span>
+              </span>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function PageTwoGanesha() {
   const frame = useRef<HTMLDivElement>(null)
   const invocation = useRef<HTMLElement>(null)
@@ -746,21 +937,39 @@ export function PageTwoGanesha() {
           </span></div>
         </footer>
       )}
-      {!MANTRA_RISE && <footer
-        ref={invocation}
-        className="page-two-invocation"
-        style={{ textShadow: 'none', filter: 'drop-shadow(0 0 2px rgb(255 218 145 / .72)) drop-shadow(0 0 4px rgb(255 183 74 / .32))' }}
-        aria-label="Ganesha invocation"
-      >
-        <div style={GLASS}>
-          <h2 lang="or" className="page-two-invocation__title" style={GLASS_TEXT}>
-            ଶ୍ରୀ ଗଣେଶାୟ ନମଃ
-          </h2>
-          <p lang="en" className="page-two-invocation__romanization" style={GLASS_TEXT}>
-            Sri Ganeshaya Namah
-          </p>
-        </div>
-      </footer>}
+      {!MANTRA_RISE && (
+        <section ref={invocation} className="mantra-ticker-stage" data-revealed="false" aria-label="Ganesha invocation">
+          <style>{`
+            .mantra-ticker-stage { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+            .mantra-ticker {
+              position: absolute; inset-inline: 0; overflow: hidden;
+              display: flex; align-items: center;
+              padding-block: clamp(6px, 1.1dvh, 12px);
+              background: linear-gradient(90deg, transparent, rgb(35 15 58 / .22) 20%, rgb(35 15 58 / .22) 80%, transparent);
+              opacity: var(--mantra-ticker-reveal, 0); visibility: hidden;
+              -webkit-mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+              mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+            }
+            .mantra-ticker--or { top: max(1.5dvh, env(safe-area-inset-top, 0px)); transform: translateY(calc(-110% * (1 - var(--mantra-ticker-reveal, 0)))); color: #fff1cc; font: 650 clamp(1.25rem, 2.65vw, 2.2rem)/1.35 var(--font-odia); }
+            .mantra-ticker--en { bottom: max(1.5dvh, env(safe-area-inset-bottom, 0px)); transform: translateY(calc(110% * (1 - var(--mantra-ticker-reveal, 0)))); color: #ffe8bd; font: 650 clamp(.83rem, 1.25vw, 1.12rem)/1.45 var(--font-inscription); letter-spacing: .09em; text-transform: uppercase; }
+            .mantra-ticker-stage[data-revealed="true"] .mantra-ticker { visibility: visible; }
+            .mantra-ticker__track { display: flex; width: max-content; flex: none; animation: mantra-ticker-scroll 26s linear infinite; animation-play-state: paused; }
+            .mantra-ticker-stage[data-revealed="true"] .mantra-ticker__track { animation-play-state: running; }
+            .mantra-ticker__group { display: flex; align-items: center; justify-content: space-around; min-width: 100vw; flex: none; }
+            .mantra-ticker__item { flex: none; white-space: nowrap; padding-inline: clamp(14px, 2.1vw, 42px); text-shadow: 0 0 2px rgb(255 218 145 / .72), 0 0 4px rgb(255 183 74 / .32); }
+            .mantra-ticker__separator { margin-inline-start: clamp(20px, 3vw, 60px); color: #d8b8ff; opacity: .7; font-size: .7em; }
+            @keyframes mantra-ticker-scroll { from { transform: translate3d(0,0,0); } to { transform: translate3d(-50%,0,0); } }
+            @media (prefers-reduced-motion: reduce) {
+              .mantra-ticker { transition: none; justify-content: center; mask-image: none; }
+              .mantra-ticker__track { animation: none; width: auto; }
+              .mantra-ticker__group { min-width: 0; }
+              .mantra-ticker__group + .mantra-ticker__group, .mantra-ticker__item + .mantra-ticker__item, .mantra-ticker__separator { display: none; }
+            }
+          `}</style>
+          <MantraTicker language="or" phrase="ଶ୍ରୀ ଗଣେଶାୟ ନମଃ" />
+          <MantraTicker language="en" phrase="Sri Ganeshaya Namah" />
+        </section>
+      )}
     </div>
   )
 }
