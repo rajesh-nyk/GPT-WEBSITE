@@ -33,6 +33,20 @@ const RAY_SHINE = typeof window !== 'undefined' &&
 const MIST_EXPERIMENT = typeof window !== 'undefined' &&
   new URLSearchParams(window.location.search).get('mist') === '1'
 const MIST_DEFINES = MIST_EXPERIMENT ? { FLOWING_MIST: 1 } : {}
+// Preview controls apply only to the optional atmosphere. Absent parameters
+// reproduce the previously approved experimental palette and density exactly.
+const mistQuery = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
+const mistHex = (mistQuery?.get('mistColor') ?? '').replace(/^#/, '')
+const customMistColor = /^[0-9a-f]{6}$/i.test(mistHex)
+const mistColorNumber = customMistColor ? Number.parseInt(mistHex, 16) : 0xab6efa
+const mistTint = new Vector3(
+  ((mistColorNumber >> 16) & 255) / 255,
+  ((mistColorNumber >> 8) & 255) / 255,
+  (mistColorNumber & 255) / 255,
+)
+const mistLevel = mistQuery?.get('mistIntensity')
+const mistPercent = mistLevel == null || mistLevel.trim() === '' ? 65 : Number(mistLevel)
+const MIST_STRENGTH = Number.isFinite(mistPercent) ? MathUtils.clamp(mistPercent, 0, 100) / 65 : 1
 const lotusAuraGlow = { value: 0 }
 
 const AURA_VERTEX = /* glsl */ `
@@ -58,7 +72,8 @@ const AURA_FRAGMENT = /* glsl */ `
                        * cos(p.y * 6.1 - sin(p.x * 3.3));
   }
   #ifdef FLOWING_MIST
-  uniform float uMistTime;
+  uniform float uMistTime, uMistStrength, uMistTintMix;
+  uniform vec3 uMistTint;
   // Continuous lattice noise instead of hashing every moving UV directly.
   // This keeps the cloud coherent between frames rather than sparkling.
   float mistHash(vec2 p) {
@@ -116,7 +131,12 @@ const AURA_FRAGMENT = /* glsl */ `
     float extra = crownAlpha * (1.0 - surrounding);
     float volume = surrounding + extra;
     color = (color * surrounding + crownColor * extra) / max(volume, 0.0001);
-    return vec4(color, volume * edge * uFade);
+    // Tint only the cloud; keep the golden ray layer, original shading,
+    // density pattern and neon invocation independent of these controls.
+    float value = max(color.r, max(color.g, color.b));
+    vec3 tint = uMistTint * (0.32 + 0.68 * value);
+    color = mix(color, tint, uMistTintMix);
+    return vec4(color, clamp(volume * uMistStrength, 0.0, 1.0) * edge * uFade);
   }
   #endif
 
@@ -293,6 +313,8 @@ function LotusFigure({ frame, invocation }: {
   const auraMaterial = useRef<ShaderMaterial>(null)
   const auraUniforms = useMemo(() => ({
     uTime: { value: 0 }, uFade: { value: 0 }, uMistTime: { value: 0 },
+    uMistStrength: { value: MIST_STRENGTH }, uMistTint: { value: mistTint },
+    uMistTintMix: { value: customMistColor ? 1 : 0 },
     uAura: { value: AURA_SETTINGS.aura }, uRays: { value: AURA_SETTINGS.rays },
     uViolet: { value: AURA_SETTINGS.violet }, uLotus: { value: AURA_SETTINGS.lotus },
     uRayCount: { value: AURA_SETTINGS.rayCount }, uShine: { value: RAY_SHINE },
