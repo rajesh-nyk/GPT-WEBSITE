@@ -895,17 +895,21 @@ function MantraTicker({ language, phrase }: { language: 'or' | 'en'; phrase: str
   return (
     <div className={`mantra-ticker mantra-ticker--${language}`} lang={language}>
       <span className="sr-only">{phrase}</span>
-      <div className="mantra-ticker__track" aria-hidden="true">
-        {[0, 1].map(group => (
-          <div className="mantra-ticker__group" key={group}>
-            {[0, 1, 2, 3].map(i => (
-              <span className="mantra-ticker__item" key={i}>
-                {phrase}<span className="mantra-ticker__separator">✧</span>
-              </span>
+      {[false, true].map(glow => (
+        <div key={String(glow)} className={glow ? 'mantra-ticker__glow' : 'mantra-ticker__base'} aria-hidden="true">
+          <div className="mantra-ticker__track">
+            {[0, 1].map(group => (
+              <div className="mantra-ticker__group" key={group}>
+                {[0, 1, 2, 3].map(i => (
+                  <span className="mantra-ticker__item" key={i}>
+                    {phrase}<span className="mantra-ticker__separator">✧</span>
+                  </span>
+                ))}
+              </div>
             ))}
           </div>
-        ))}
-      </div>
+        </div>
+      ))}
     </div>
   )
 }
@@ -958,10 +962,29 @@ export function PageTwoGanesha() {
             .mantra-ticker__group { display: flex; align-items: center; justify-content: space-around; min-width: 100vw; flex: none; }
             .mantra-ticker__item { flex: none; white-space: nowrap; padding-inline: clamp(14px, 2.1vw, 42px); text-shadow: 0 0 2px rgb(255 218 145 / .72), 0 0 4px rgb(255 183 74 / .32); }
             .mantra-ticker__separator { margin-inline-start: clamp(20px, 3vw, 60px); color: #d8b8ff; opacity: .7; font-size: .7em; }
+            .mantra-ticker__base { display: flex; flex: none; width: max-content; }
+            .mantra-ticker__glow {
+              position: absolute; inset: 0; display: flex; align-items: center; pointer-events: none;
+              -webkit-mask-image: linear-gradient(90deg, transparent 44%, rgb(0 0 0 / .35) 47%, #000 50%, rgb(0 0 0 / .35) 53%, transparent 56%);
+              mask-image: linear-gradient(90deg, transparent 44%, rgb(0 0 0 / .35) 47%, #000 50%, rgb(0 0 0 / .35) 53%, transparent 56%);
+              -webkit-mask-size: 240% 100%; mask-size: 240% 100%;
+              -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+              animation: mantra-glow-sweep 8s linear infinite; animation-play-state: paused;
+            }
+            .mantra-ticker--en .mantra-ticker__glow { animation-direction: reverse; animation-delay: -3s; }
+            .mantra-ticker-stage[data-revealed="true"] .mantra-ticker__glow { animation-play-state: running; }
+            .mantra-ticker__glow .mantra-ticker__item { color: #fff9e6; text-shadow: 0 0 3px #fff0bb, 0 0 9px rgb(255 203 116 / .85), 0 0 17px rgb(255 180 85 / .48); }
+            .mantra-ticker__glow .mantra-ticker__separator { color: #f9e9ff; opacity: 1; }
+            @keyframes mantra-glow-sweep {
+              from { -webkit-mask-position: 100% 0; mask-position: 100% 0; }
+              to { -webkit-mask-position: 0% 0; mask-position: 0% 0; }
+            }
             @keyframes mantra-ticker-scroll { from { transform: translate3d(0,0,0); } to { transform: translate3d(-50%,0,0); } }
             @media (prefers-reduced-motion: reduce) {
               .mantra-ticker { transition: none; justify-content: center; mask-image: none; }
               .mantra-ticker__track { animation: none; width: auto; }
+              .mantra-ticker__base { width: auto; }
+              .mantra-ticker__glow { display: none; }
               .mantra-ticker__group { min-width: 0; }
               .mantra-ticker__group + .mantra-ticker__group, .mantra-ticker__item + .mantra-ticker__item, .mantra-ticker__separator { display: none; }
             }
