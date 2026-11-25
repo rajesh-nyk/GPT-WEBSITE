@@ -597,8 +597,29 @@ function LotusFigure({ frame, invocation }: {
       const spreadFade = MathUtils.smoothstep(progress, 0.35, 0.96) * exitFade
       const titleFade = MathUtils.smoothstep(progress, 0.59, 0.73) * exitFade
       const opacity = (MANTRA_RISE ? spreadFade : titleFade).toFixed(3)
-      if (invocation.current.style.opacity !== opacity) {
-        invocation.current.style.opacity = MANTRA_RISE ? '1' : opacity
+      const frameMorphEnabled = MANTRA_BORDER && !MANTRA_RISE
+      const footerOpacity = MANTRA_RISE || frameMorphEnabled ? '1' : opacity
+      if (frameMorphEnabled) {
+        const el = invocation.current
+        if (el.style.getPropertyValue('--mantra-text-opacity') !== opacity) {
+          el.style.setProperty('--mantra-text-opacity', opacity)
+        }
+        const reveal = MathUtils.smootherstep(progress, 0.58, 0.94)
+          * (1 - MathUtils.smootherstep(departureProgress, 0.03, 0.88))
+        const morph = reducedMotion ? (titleFade > 0.5 ? 1 : 0) : reveal
+        const key = morph.toFixed(3)
+        if (el.style.getPropertyValue('--mantra-frame-morph') !== key) {
+          el.style.setProperty('--mantra-frame-morph', key)
+          el.style.setProperty('--mantra-frame-visibility', morph > 0.002 ? 'visible' : 'hidden')
+          const shape = mantraFramePath(morph)
+          el.querySelectorAll<SVGPathElement>('[data-mantra-frame-shape]').forEach(node => node.setAttribute('d', shape))
+          el.querySelector<SVGGElement>('[data-mantra-frame-ornaments]')?.setAttribute('transform',
+            `translate(170 60) scale(${0.08 + 0.92 * morph} ${0.03 + 0.97 * morph}) translate(-170 -60)`)
+        }
+      }
+      if (invocation.current.style.opacity !== footerOpacity || (MANTRA_RISE && invocation.current.style.getPropertyValue('--mantra-spread') !== opacity)) {
+        if (MANTRA_RISE) invocation.current.style.setProperty('--mantra-spread', opacity)
+        invocation.current.style.opacity = footerOpacity
         if (MANTRA_RISE) {
           // Each word rises out of its own line in turn; a light sweep crosses the letters.
           const el = invocation.current
@@ -728,6 +749,14 @@ const mantraGlowStyle = {
   filter: 'drop-shadow(0 0 2px rgb(255 218 145 / .72)) drop-shadow(0 0 4px rgb(255 183 74 / .32))',
 } as const
 
+// Morph the actual contour from a compact rounded ribbon into the finished frame.
+function mantraFramePath(t: number) {
+  const sx = 0.08 + 0.92 * t
+  const sy = 0.03 + 0.97 * t
+  const pt = (x: number, y: number) => `${(170 + (x - 170) * sx).toFixed(3)} ${(60 + (y - 60) * sy).toFixed(3)}`
+  return `M${pt(7,60)}C${pt(7,22)} ${pt(31,13)} ${pt(64,13)}L${pt(135,13)}Q${pt(157,13)} ${pt(170,13-9*t)}Q${pt(183,13)} ${pt(205,13)}L${pt(276,13)}C${pt(309,13)} ${pt(333,22)} ${pt(333,60)}C${pt(333,98)} ${pt(309,107)} ${pt(276,107)}L${pt(205,107)}Q${pt(183,107)} ${pt(170,107+9*t)}Q${pt(157,107)} ${pt(135,107)}L${pt(64,107)}C${pt(31,107)} ${pt(7,98)} ${pt(7,60)}Z`
+}
+
 function MantraRoyalFrame() {
   return (
     <svg aria-hidden="true" viewBox="0 0 340 120" preserveAspectRatio="none"
@@ -738,8 +767,8 @@ function MantraRoyalFrame() {
         height: 'calc(100% + 62px)',
         overflow: 'visible',
         pointerEvents: 'none',
-        zIndex: 1,
-        filter: 'drop-shadow(0 0 2px rgb(244 233 255 / 1)) drop-shadow(0 0 4px rgb(205 161 255 / .85)) drop-shadow(0 0 7px rgb(171 110 250 / .55))',
+        zIndex: 0,
+        visibility: 'var(--mantra-frame-visibility, hidden)' as 'hidden',
       }}>
       <defs>
         <linearGradient id="mantra-dream-edge" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -749,9 +778,19 @@ function MantraRoyalFrame() {
           <stop offset="78%" stopColor="#F4E9FF" stopOpacity="1" />
           <stop offset="100%" stopColor="#AB6EFA" stopOpacity="0.85" />
         </linearGradient>
+        <linearGradient id="mantra-clear-glass" x1="12%" y1="0%" x2="88%" y2="100%">
+          <stop offset="0%" stopColor="#F8F3FF" stopOpacity=".17" />
+          <stop offset="25%" stopColor="#EFE4FF" stopOpacity=".045" />
+          <stop offset="55%" stopColor="#FFFFFF" stopOpacity=".018" />
+          <stop offset="82%" stopColor="#D4BAFF" stopOpacity=".045" />
+          <stop offset="100%" stopColor="#F8F3FF" stopOpacity=".12" />
+        </linearGradient>
       </defs>
+      <path data-mantra-frame-shape="" d={mantraFramePath(0)} fill="url(#mantra-clear-glass)" />
+      <g style={{ filter: 'drop-shadow(0 0 2px rgb(244 233 255 / 1)) drop-shadow(0 0 4px rgb(205 161 255 / .85)) drop-shadow(0 0 7px rgb(171 110 250 / .55))' }}>
+        <path data-mantra-frame-shape="" d={mantraFramePath(0)} fill="none" stroke="url(#mantra-dream-edge)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+        <g data-mantra-frame-ornaments="" transform="translate(170 60) scale(.08 .03) translate(-170 -60)">
       <g fill="none" stroke="url(#mantra-dream-edge)" strokeLinecap="round" strokeLinejoin="round">
-        <path vectorEffect="non-scaling-stroke" strokeWidth="1.5" d="M7 60C7 22 31 13 64 13H135Q157 13 170 4Q183 13 205 13H276C309 13 333 22 333 60C333 98 309 107 276 107H205Q183 107 170 116Q157 107 135 107H64C31 107 7 98 7 60Z" />
         <path vectorEffect="non-scaling-stroke" strokeWidth="0.8" opacity="0.72" d="M3 42C12 18 34 8 76 8M264 8C306 8 328 18 337 42M337 78C328 102 306 112 264 112M76 112C34 112 12 102 3 78" />
       </g>
       <g fill="#F4E9FF" opacity="0.95">
@@ -759,6 +798,8 @@ function MantraRoyalFrame() {
         <path d="M170 112Q171 115 175 116Q171 117 170 120Q169 117 165 116Q169 115 170 112Z" />
         <path d="M7 54Q8 59 13 60Q8 61 7 66Q6 61 1 60Q6 59 7 54Z" />
         <path d="M333 54Q334 59 339 60Q334 61 333 66Q332 61 327 60Q332 59 333 54Z" />
+      </g>
+        </g>
       </g>
     </svg>
   )
@@ -799,7 +840,7 @@ export function PageTwoGanesha() {
       >
         <div style={MANTRA_BORDER ? { position: 'relative', display: 'inline-block' } : undefined}>
           {MANTRA_BORDER && <MantraRoyalFrame />}
-          <div style={MANTRA_BORDER && MANTRA_GLOW ? { ...GLASS, ...mantraGlowStyle } : GLASS}>
+          <div style={MANTRA_BORDER ? { ...GLASS, ...(MANTRA_GLOW ? mantraGlowStyle : {}), position: 'relative', zIndex: 1, opacity: 'var(--mantra-text-opacity, 0)' } : GLASS}>
           <h2 lang="or" className="page-two-invocation__title" style={GLASS_TEXT}>
             ଶ୍ରୀ ଗଣେଶାୟ ନମଃ
           </h2>
