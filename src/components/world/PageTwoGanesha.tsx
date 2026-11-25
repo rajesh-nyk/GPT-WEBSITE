@@ -3,7 +3,6 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { useLayoutEffect, useMemo, useRef, type RefObject } from 'react'
 import { Group, MathUtils, Mesh, Vector2, Vector3, type BufferAttribute, type BufferGeometry, type MeshLambertMaterial, type MeshStandardMaterial, type Object3D, type Points, type ShaderMaterial } from 'three'
 import { ScrollTrigger } from '../../lib/gsap'
-import { pointer } from '../../lib/pointer'
 import { useReducedMotion } from '../../lib/useReducedMotion'
 import { Model, modelMetalnessMap } from '../Model'
 import { Prewarm } from '../three/Prewarm'
@@ -11,7 +10,7 @@ import { SceneCanvas } from '../three/SceneCanvas'
 import { ganeshaPose, ganeshaPoseGLSL, lotusGrade, makeOrnamentGlints, ornamentSweep, ornamentSweepGLSL } from './lotus/appearance'
 import { LOTUS_H, LOTUS_PIVOT, LOTUS_R } from './lotus/layout'
 import { splitByPart } from './lotus/parts'
-import { projectCircle } from './screenShapes'
+import { CLOUDS_ENABLED, PageTwoClouds, cloudFade } from './PageTwoClouds'
 
 type LotusMesh = Mesh<BufferGeometry, MeshStandardMaterial | MeshLambertMaterial>
 const PETALS = 'lotus-petals'
@@ -23,9 +22,36 @@ const EXIT_ANGLE = MathUtils.degToRad(28)
 const EXIT_ROTATION_RESPONSE = 16
 const FIGURE_GLOW = 0.31
 const PETAL_GLOW = 0.30
+// With the clouds (default; off with ?clouds=0): a gentler glow and light on him, so he sits in the same tonal range
+// as the clouds behind him instead of glaring against them.
+const CLOUD_TONE = CLOUDS_ENABLED ? 0.6 : 1
 // Approved aura is now the default. Use aura=0 for the original scene.
 const AURA_ENABLED = typeof window === 'undefined' ||
   new URLSearchParams(window.location.search).get('aura') !== '0'
+// Preview ?mantra-rise: the invocation is drawn huge (edge to edge), with a faint glow,
+// and rises up from below the bottom edge instead of a 12px nudge.
+const MANTRA_RISE = typeof window !== 'undefined' &&
+  new URLSearchParams(window.location.search).has('mantra-rise')
+// Preview ?mantra-rise: each mantra line sits on a frosted-glass plate.
+const GLASS = MANTRA_RISE ? {
+  width: '100%',
+  padding: '3dvh 0',
+  borderRadius: 0,
+  background: 'linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01))',
+  borderBlock: '0.25px solid rgba(255, 255, 255, 0.2)',
+  WebkitBackdropFilter: 'blur(6px)',
+  backdropFilter: 'blur(6px)',
+} as const : {}
+// Preview ?mantra-rise: letters filled with see-through glass (a faint white sheen,
+// brighter at the top, plus a thin light edge) instead of solid colour.
+const GLASS_TEXT = MANTRA_RISE ? {
+  color: 'transparent',
+  backgroundImage: 'linear-gradient(180deg, rgba(255,255,255,0.42) 0%, rgba(255,255,255,0.14) 55%, rgba(255,255,255,0.08) 100%)',
+  WebkitBackgroundClip: 'text',
+  backgroundClip: 'text',
+  WebkitTextStroke: '1px rgba(255,255,255,0.55)',
+  textShadow: 'none',
+} as const : {}
 const AURA_SETTINGS = { aura: 0.22, rays: 0.36, lotus: 0.21 } as const
 // Optional comparison: shine=0 removes the warm highlight within the shafts.
 const RAY_SHINE = typeof window !== 'undefined' &&
@@ -145,11 +171,62 @@ const FULL_LENS = 2 * Math.tan(MathUtils.degToRad(35 / 2))
 const petalBreath = new WeakMap<LotusMesh['material'], { value: number }>()
 export const ganeshaPosition = { sample: null as (() => Vector3 | null) | null }
 
+/**
+ * With the clouds (default; off with ?clouds=0): Ganesha and the lotus condense into being like the clouds do — they
+ * form out of cloud-like wisps from his heart outward, with a soft gold edge where they
+ * are still forming. Shape only: his rotation and pose are untouched. 1 = whole (the
+ * effect is skipped entirely), 0 = not yet formed.
+ */
+// Starts unformed under ?clouds, so he never begins whole and dissolves first.
+const condense = { value: CLOUDS_ENABLED ? 0 : 1 }
+const CONDENSE_GLSL = /* glsl */ `
+  uniform float uCondense;
+  varying vec3 vCondensePos;
+  float condenseHash(vec3 p) {
+    p = fract(p * 0.3183099 + 0.1);
+    p *= 17.0;
+    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+  }
+  float condenseNoise(vec3 x) {
+    vec3 i = floor(x), f = fract(x);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mix(condenseHash(i), condenseHash(i + vec3(1, 0, 0)), f.x),
+                   mix(condenseHash(i + vec3(0, 1, 0)), condenseHash(i + vec3(1, 1, 0)), f.x), f.y),
+               mix(mix(condenseHash(i + vec3(0, 0, 1)), condenseHash(i + vec3(1, 0, 1)), f.x),
+                   mix(condenseHash(i + vec3(0, 1, 1)), condenseHash(i + vec3(1, 1, 1)), f.x), f.y), f.z);
+  }
+  // How far this point is from being formed: >0 still wisp, <0 formed.
+  float condenseEdge() {
+    vec3 p = vCondensePos;
+    float n = 0.5 * condenseNoise(p * 60.0) + 0.3 * condenseNoise(p * 140.0) + 0.2 * condenseNoise(p * 320.0);
+    float reach = length((p - vec3(0.0, 0.15, 0.0)) * vec3(1.0, 1.25, 1.0)) / 0.26;
+    return uCondense * 1.5 - (reach + (n - 0.5) * 0.7);
+  }
+`
+function applyCondense(shader: { uniforms: Record<string, { value: unknown }>; vertexShader: string; fragmentShader: string }) {
+  shader.uniforms.uCondense = condense
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', '#include <common>\nvarying vec3 vCondensePos;')
+    .replace('#include <begin_vertex>', '#include <begin_vertex>\nvCondensePos = position;')
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <common>', `#include <common>\n${CONDENSE_GLSL}`)
+    .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+      float condenseLeft = 1.0;
+      if (uCondense < 0.999) {
+        condenseLeft = condenseEdge();
+        if (condenseLeft < 0.0) discard;
+      }`)
+    .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+      // The forming edge glows faintly, in the clouds' lavender-gold.
+      totalEmissiveRadiance += vec3(0.62, 0.48, 0.55) * 0.3 * (1.0 - smoothstep(0.0, 0.05, condenseLeft)) * step(uCondense, 0.999);`)
+}
+
 function gradePetals(material: LotusMesh['material']) {
   const opening = { value: 0 }
   petalBreath.set(material, opening)
   material.customProgramCacheKey = () => AURA_ENABLED ? 'page-two-lotus-blush-breath-aura' : 'page-two-lotus-blush-breath'
   material.onBeforeCompile = (shader) => {
+    applyCondense(shader)
     shader.uniforms.uPetalBreath = opening
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vPetalPosition;\nvarying vec3 vPetalNormal;\nuniform float uPetalBreath;')
@@ -222,6 +299,7 @@ function gradePetals(material: LotusMesh['material']) {
 function animateFigure(material: LotusMesh['material'], metalMask = modelMetalnessMap(material)) {
   material.customProgramCacheKey = () => 'page-two-ganesha-pose'
   material.onBeforeCompile = (shader) => {
+    applyCondense(shader)
     Object.assign(shader.uniforms, ganeshaPose)
     shader.uniforms.uMistWrap = mistWrap
     shader.uniforms.uPortraitMistTint = { value: mistTint }
@@ -407,9 +485,10 @@ function LotusFigure({ frame, invocation }: {
   const exit = useRef<ScrollTrigger | null>(null)
   const idleTime = useRef(0)
   const mistTime = useRef(0)
-  const hover = useRef(0)
-  const hoverCenter = useRef(new Vector3()).current
   const painted = useRef(false)
+  const haloPoint = useRef(new Vector2()).current
+  const facePoint = useRef(new Vector3()).current
+  const modelPoint = useRef(new Vector3()).current
   // Keep the framing on ultrawide displays without hiding anything outside it.
   const aspect = MathUtils.clamp(width / Math.max(1, height), 0.1, FRAMING_ASPECT_LIMIT)
   const scale = Math.min(6 * FULL_LENS * aspect * 0.72 / (2 * LOTUS_R), 6 * FULL_LENS * 0.60 / LOTUS_H)
@@ -457,7 +536,7 @@ function LotusFigure({ frame, invocation }: {
     }
   }, [invalidate, reducedMotion])
 
-  useFrame(({ camera, size, viewport }, delta) => {
+  useFrame(({ viewport }, delta) => {
     const petals = model.current?.getObjectByName(PETALS) as LotusMesh | undefined
     const seat = petals?.getObjectByName(SEAT)
     const figure = seat?.getObjectByName(GANESHA) as LotusMesh | undefined
@@ -483,30 +562,15 @@ function LotusFigure({ frame, invocation }: {
       idleTime.current += dt
       invalidate()
     }
-    let hovering = false
-    if (idle > 0 && pointer.active && pointer.type === 'mouse') {
-      // Both hit areas stay anchored to the resting pose during each breath.
-      const mouseX = pointer.clientX - size.left
-      const mouseY = pointer.clientY - size.top
-      hoverCenter.set(0, (0.194 - LOTUS_PIVOT.y) * scale, 0.035 * scale)
-      const statue = projectCircle(hoverCenter, 0.105 * scale, camera, size.width, size.height)
-      const x = (mouseX - statue.x) / statue.r
-      const y = (mouseY - statue.y) / (statue.r * 0.87)
-      hoverCenter.set(0, (0.062 - LOTUS_PIVOT.y) * scale, 0.055 * scale)
-      const flower = projectCircle(hoverCenter, LOTUS_R * scale, camera, size.width, size.height)
-      const petalX = (mouseX - flower.x) / flower.r
-      const petalY = (mouseY - flower.y) / (flower.r * 0.39)
-      hovering = x * x + y * y <= 1 || petalX * petalX + petalY * petalY <= 1
-    }
-    hover.current = idle > 0 ? MathUtils.damp(hover.current, Number(hovering), 3, dt) : 0
     const inhale = (0.5 - 0.5 * Math.cos(idleTime.current * 2 * Math.PI / 5.6)) * idle
-    const sway = Math.sin(idleTime.current * 2 * Math.PI / 9) * SWAY_ANGLE * idle * (1 - hover.current * 0.8)
-    const bodyWidth = 1 + inhale * (0.008 + 0.013 * hover.current)
+    const sway = Math.sin(idleTime.current * 2 * Math.PI / 9) * SWAY_ANGLE * idle
+    const bodyWidth = 1 + inhale * 0.008
     ganeshaPose.uFigureTurn.value = turn
     ganeshaPose.uFigureSway.value = sway
-    ganeshaPose.uFigureStretch.value.set(bodyWidth, 1 + inhale * (0.024 + 0.062 * hover.current))
+    ganeshaPose.uFigureStretch.value.set(bodyWidth, 1 + inhale * 0.024)
     const opening = petalBreath.get(petals.material)
-    if (opening) opening.value = inhale * hover.current
+    // Hover removed (his request, 25 Nov 2026): the petals stay at rest.
+    if (opening) opening.value = 0
     // Stagger the portrait, the metal catchlights, and the invocation on the paced scroll.
     const faceLight = MathUtils.smootherstep(progress, 0.31, 0.55)
     const bodyLight = MathUtils.smootherstep(progress, 0.46, 0.82)
@@ -517,14 +581,39 @@ function LotusFigure({ frame, invocation }: {
     ornamentSweep.value.set(glintTravel, arrivalShine)
     const exitFade = 1 - MathUtils.smoothstep(departureProgress, 0, 0.90)
     const fade = MathUtils.smoothstep(progress, 0.27, 0.85) * exitFade
+    cloudFade.value = fade
+    cloudFade.progress = progress
+    cloudFade.exit = exitFade
+    // He condenses as page 2 arrives and thins away on exit.
+    // Slow (his ask): spread over most of the arrival, and never faster than about 4.5 s to
+    // form however fast the scroll moves (reversing may be quicker).
+    if (CLOUDS_ENABLED && !reducedMotion) {
+      const target = MathUtils.smoothstep(progress, 0.08, 0.96) * MathUtils.smoothstep(exitFade, 0.0, 1.0)
+      const step = (target > condense.value ? 0.22 : 0.8) * dt
+      condense.value += MathUtils.clamp(target - condense.value, -step, step)
+      if (condense.value !== target) invalidate()
+    } else condense.value = 1
     if (invocation.current) {
-      const style = invocation.current.style
-      const opacity = (MathUtils.smoothstep(progress, 0.59, 0.73) * exitFade).toFixed(3)
-      if (style.opacity !== opacity) style.opacity = opacity
-      if (!reducedMotion) {
+      const spreadFade = MathUtils.smoothstep(progress, 0.35, 0.96) * exitFade
+      const titleFade = MathUtils.smoothstep(progress, 0.59, 0.73) * exitFade
+      const opacity = (MANTRA_RISE ? spreadFade : titleFade).toFixed(3)
+      if (invocation.current.style.opacity !== opacity) {
+        invocation.current.style.opacity = MANTRA_RISE ? '1' : opacity
+        if (MANTRA_RISE) {
+          // Each word rises out of its own line in turn; a light sweep crosses the letters.
+          const el = invocation.current
+          ;[0, 1, 2].forEach((i) => {
+            const k = MathUtils.smoothstep(spreadFade, i * 0.16, i * 0.16 + 0.6)
+            el.style.setProperty(`--r${i}`, (1 - k).toFixed(3))
+          })
+          el.style.setProperty('--sw', (1 - MathUtils.smoothstep(spreadFade, 0.25, 1)).toFixed(3))
+        }
+      }
+      if (!MANTRA_RISE && !reducedMotion) {
         const fragments = MathUtils.smootherstep(progress, 0.63, 0.81).toFixed(3)
         const fill = MathUtils.smootherstep(progress, 0.76, 0.91).toFixed(3)
         const romanization = MathUtils.smootherstep(progress, 0.84, 0.95).toFixed(3)
+        const style = invocation.current.style
         if (style.getPropertyValue('--mantra-fragments') !== fragments) {
           style.setProperty('--mantra-fragments', fragments)
         }
@@ -551,11 +640,11 @@ function LotusFigure({ frame, invocation }: {
       }
       lotusAuraGlow.value = AURA_SETTINGS.lotus * fade * (0.96 + 0.04 * inhale)
     }
-    petals.material.emissiveIntensity = bodyLight * PETAL_GLOW
-    figure.material.emissiveIntensity = MathUtils.lerp(faceLight, bodyLight, 0.62) * FIGURE_GLOW
+    petals.material.emissiveIntensity = bodyLight * PETAL_GLOW * CLOUD_TONE
+    figure.material.emissiveIntensity = MathUtils.lerp(faceLight, bodyLight, 0.62) * FIGURE_GLOW * CLOUD_TONE
     const glints = figure.getObjectByName(GLINTS) as Points<BufferGeometry, ShaderMaterial> | undefined
     if (glints) {
-      glints.material.uniforms.uGlow.value = MathUtils.smoothstep(progress, 0.49, 0.63)
+      glints.material.uniforms.uGlow.value = MathUtils.smoothstep(progress, 0.49, 0.63) * condense.value
       glints.material.uniforms.uDpr.value = viewport.dpr
       glints.material.uniforms.uTime.value = reducedMotion ? 0 : idleTime.current
       glints.material.uniforms.uOrnamentSweep.value.copy(ornamentSweep.value)
@@ -575,6 +664,11 @@ function LotusFigure({ frame, invocation }: {
 
   return (
     <>
+      {CLOUDS_ENABLED && <PageTwoClouds
+        light={haloPoint.set(0, (0.235 - LOTUS_PIVOT.y) * scale)}
+        face={facePoint.set(0, (0.205 - LOTUS_PIVOT.y) * scale, 0.06 * scale)}
+        model={modelPoint.set(0, (0.15 - LOTUS_PIVOT.y) * scale, 0)}
+      />}
       {AURA_ENABLED && (
         <mesh
           position={[0, (0.15 - LOTUS_PIVOT.y) * scale * auraPerspective, -auraDepth]}
@@ -609,12 +703,12 @@ function LotusFigure({ frame, invocation }: {
           />
         </mesh>
       )}
-      <Environment frames={1} resolution={64} environmentIntensity={0.55}>
+      <Environment frames={1} resolution={64} environmentIntensity={0.55 * CLOUD_TONE}>
         <Lightformer position={[-3, 3, 4]} target={[0, 0, 0]} scale={[4, 3, 1]} intensity={2} color="#ffe7cb" />
         <Lightformer position={[3, 2, -4]} target={[0, 0, 0]} scale={[2, 4, 1]} intensity={1.5} color="#c7b6ff" />
       </Environment>
-      <hemisphereLight args={['#fff0d8', '#503042', 1.1]} />
-      <directionalLight position={[-3, 4, 5]} intensity={2.1} color="#ffe6cc" />
+      <hemisphereLight args={['#fff0d8', '#503042', 1.1 * CLOUD_TONE]} />
+      <directionalLight position={[-3, 4, 5]} intensity={2.1 * CLOUD_TONE} color="#ffe6cc" />
       <directionalLight position={[3, 2, -3]} intensity={1.4} color="#ffbc80" />
       <group ref={model} scale={scale} position={[0, -LOTUS_PIVOT.y * scale, 0]}>
         <Model src="lotus-ganesha.glb" customize={prepareLotus} castShadow={false} receiveShadow={false}>
@@ -635,23 +729,37 @@ export function PageTwoGanesha() {
         camera={{ position: [0, 0, 6], fov: 35, near: 0.1, far: 50 }}
         effects={false}
         still
+        style={MANTRA_RISE ? { position: 'relative', zIndex: 1 } : undefined}
       >
         <LotusFigure frame={frame} invocation={invocation} />
       </SceneCanvas>
-      <footer
+      {MANTRA_RISE && (
+        <footer ref={invocation} aria-label="Ganesha invocation" className="mw-stage">
+          <div className="mw mw-shri"><span className="mw-in mw-r0">
+            <span className="mw-en">Shri</span><span lang="or" className="mw-or">ଶ୍ରୀ</span>
+          </span></div>
+          <div className="mw mw-gan"><span className="mw-in mw-r1">
+            <span className="mw-en">Ganeshaya</span><span lang="or" className="mw-or">ଗଣେଶାୟ</span>
+          </span></div>
+          <div className="mw mw-nam"><span className="mw-in mw-r2">
+            <span className="mw-en">Namah</span><span lang="or" className="mw-or">ନମଃ</span>
+          </span></div>
+        </footer>
+      )}
+      {!MANTRA_RISE && <footer
         ref={invocation}
         className="page-two-invocation"
         aria-label="Ganesha invocation"
       >
-        <div>
-          <h2 lang="or" className="page-two-invocation__title">
+        <div style={GLASS}>
+          <h2 lang="or" className="page-two-invocation__title" style={GLASS_TEXT}>
             ଶ୍ରୀ ଗଣେଶାୟ ନମଃ
           </h2>
-          <p lang="en" className="page-two-invocation__romanization">
+          <p lang="en" className="page-two-invocation__romanization" style={GLASS_TEXT}>
             Sri Ganeshaya Namah
           </p>
         </div>
-      </footer>
+      </footer>}
     </div>
   )
 }

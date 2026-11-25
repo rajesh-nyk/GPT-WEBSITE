@@ -443,6 +443,10 @@ body {
 .loader[data-exit] {
   opacity: 0;
 }
+/* index.html hides its static loader copy until this stylesheet arrives (no unstyled flash). */
+html body .loader[data-static-loader] {
+  visibility: visible;
+}
 .loader-wheel {
   position: absolute;
   left: 50%;
@@ -2021,4 +2025,72 @@ html.cinematic-scroll { touch-action: pan-x pinch-zoom; }
     opacity: var(--mantra-romanization, 1);
     translate: 0 calc((1 - var(--mantra-romanization, 1)) * 0.5em);
   }
+}
+
+/* ---- Page 2 mantra, preview ?mantra-rise: words framing Ganesha, solid gold ---------------- */
+.mw-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 0; /* behind the 3D scene */
+  pointer-events: none;
+  opacity: 0;
+}
+.mw {
+  position: absolute;
+  overflow: hidden; /* the invisible line each word rises out of */
+  padding: 0.04em 0.06em;
+  text-align: center;
+  font-size: min(7vw, 13dvh);
+}
+.mw-shri { left: 1.5vw; top: 40%; }
+.mw-nam { right: 1.5vw; top: 40%; }
+.mw-gan { left: 50%; bottom: 1.5dvh; translate: -50% 0; font-size: min(4.4vw, 8dvh); white-space: nowrap; }
+.mw-gan .mw-in { display: flex; align-items: baseline; gap: 0.5em; }
+.mw-gan .mw-or { font-size: 0.62em; }
+.mw-in {
+  display: block;
+  /* rises from below its line; --r0..2 go 1 → 0, set from the scroll */
+  transform: translateY(calc(var(--r, 1) * 115%));
+  will-change: transform;
+}
+.mw-r0 { --r: var(--r0, 1); }
+.mw-r1 { --r: var(--r1, 1); }
+.mw-r2 { --r: var(--r2, 1); }
+.mw-en,
+.mw-or {
+  display: block;
+  color: transparent;
+  /* a bright sweep (moves with --sw) over solid warm gold */
+  background-image:
+    linear-gradient(105deg, transparent 38%, rgba(255, 255, 255, 0.95) 50%, transparent 62%),
+    linear-gradient(180deg, #fff3cf 0%, #f2c75c 50%, #b9862b 100%);
+  background-size: 320% 100%, 100% 100%;
+  background-position: calc(var(--sw, 1) * 100%) 0, 0 0;
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.mw-en {
+  font-family: var(--font-inscription);
+  font-weight: 700;
+  font-size: 1em;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.mw-or {
+  font-family: var(--font-odia);
+  font-weight: 700;
+  font-size: 0.5em;
+  line-height: 1.3;
+}
+/* Portrait / phones: no room beside him, so the two side words sit under the lotus. */
+@media (max-aspect-ratio: 1/1) {
+  .mw { font-size: min(12vw, 8dvh); }
+  .mw-gan { font-size: min(8vw, 5dvh); bottom: 2dvh; }
+  .mw-shri { left: 4vw; top: 76%; }
+  .mw-nam { right: 4vw; top: 76%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mw-in { transform: none; }
 }

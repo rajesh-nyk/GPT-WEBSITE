@@ -20,9 +20,15 @@
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="The golden Konark wheel against a sunrise, above the names Rajesh &amp; Chinmayee" />
     <meta name="twitter:card" content="summary_large_image" />
+    <!-- Dark from the first frame; the static loader stays invisible until the site CSS
+         (index.css) has loaded and styled it, so it never flashes unstyled. -->
+    <style>html,body{background:#0a0a0c;margin:0}[data-static-loader]{visibility:hidden}</style>
   </head>
   <body>
-    <div id="root"></div>
+    <!-- Static copy of the loading screen (same markup as components/Preloader.tsx), so it
+         paints as soon as the HTML and CSS arrive instead of after the JavaScript. React
+         replaces it with the identical live loader on mount. Keep the two in sync. -->
+    <div id="root"><main style="position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0"><h1>Rajesh &amp; Chinmayee</h1><p>The wedding of Rajesh and Chinmayee in Odisha: 27 January, 26 February and 3 March 2027.</p></main><div role="progressbar" aria-label="Loading site" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" class="loader fixed inset-0 z-50 bg-ink text-gold-light" data-static-loader><svg aria-hidden="true" viewBox="0 0 100 100" class="loader-wheel"><circle cx="50" cy="50" r="49" class="loader-track"></circle><circle cx="50" cy="50" r="49" pathLength="1" transform="rotate(-90 50 50)" class="loader-rim"></circle><circle cx="50" cy="50" r="38" class="loader-track"></circle><circle cx="50" cy="50" r="7" class="loader-track"></circle><g><line x1="50" y1="43" x2="50" y2="12" class="loader-spoke"></line><line x1="54.9497" y1="45.0503" x2="76.8701" y2="23.1299" class="loader-spoke"></line><line x1="57" y1="50" x2="88" y2="50" class="loader-spoke"></line><line x1="54.9497" y1="54.9497" x2="76.8701" y2="76.8701" class="loader-spoke"></line><line x1="50" y1="57" x2="50" y2="88" class="loader-spoke"></line><line x1="45.0503" y1="54.9497" x2="23.1299" y2="76.8701" class="loader-spoke"></line><line x1="43" y1="50" x2="12" y2="50" class="loader-spoke"></line><line x1="45.0503" y1="45.0503" x2="23.1299" y2="23.1299" class="loader-spoke"></line></g></svg><div class="loader-caption"><span lang="or" class="font-odia loader-odia">ଶୁଭ ବିବାହ</span><span aria-hidden="true" class="loader-count font-inscription">000</span></div></div></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

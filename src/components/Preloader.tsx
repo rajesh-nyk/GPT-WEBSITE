@@ -136,6 +136,15 @@ export function Preloader({ children }: { children: ReactNode }) {
     <>
       {phase !== 'loading' && <div inert={phase !== 'done'}>{children}</div>}
 
+      {/* While loading, the page still has its landmark and heading (search engines and
+          screen readers); the real <main> takes over when the site mounts. */}
+      {phase === 'loading' && (
+        <main className="sr-only">
+          <h1>Rajesh &amp; Chinmayee</h1>
+          <p>The wedding of Rajesh and Chinmayee in Odisha: 27 January, 26 February and 3 March 2027.</p>
+        </main>
+      )}
+
       {phase !== 'done' && (
         <div
           ref={overlay}

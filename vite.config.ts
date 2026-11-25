@@ -47,4 +47,20 @@ function modelManifest(): Plugin {
 export default defineConfig({
   plugins: [react(), tailwindcss(), modelManifest()],
   resolve: { alias: { '@': resolve(import.meta.dirname, 'src') } },
+  build: {
+    rolldownOptions: {
+      output: {
+        // Split the big libraries into their own files: they download in parallel and stay
+        // cached between site updates (only the small app file changes on each deploy).
+        codeSplitting: {
+          groups: [
+            { name: 'three', test: /node_modules[\\/]three[\\/]/ },
+            { name: 'r3f', test: /node_modules[\\/](@react-three|three-stdlib|postprocessing|@monogrid|maath|camera-controls|troika)/ },
+            { name: 'motion', test: /node_modules[\\/](gsap|@gsap|framer-motion|motion-dom|motion-utils|lenis)[\\/]/ },
+            { name: 'react', test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/ },
+          ],
+        },
+      },
+    },
+  },
 })

@@ -25,7 +25,6 @@ const PALETTE: ReadonlyArray<readonly [string, string, string]> = [
   ["#fff0c2", "#e8b04a", "#a0701e"],
   ["#fffaf0", "#f3dca0", "#c9a45c"],
 ];
-const LINES = [ODIA, LATIN, LATIN, LATIN, LATIN, LATIN];
 
 const STEP = 27; // degrees between lines on the cylinder
 const ROLL_END = TEXT_SPAN - 0.04; // progress at which the last line is centred
@@ -35,7 +34,19 @@ const BLUR_EASE = 0.45;
 /** The text waits until page 2 has settled in place (not while it is still sliding up). */
 const ARRIVE: readonly [number, number] = [0.004, 0.03];
 /** The first line rises from the bottom of the screen to the middle… */
-const RISE: readonly [number, number] = [0.004, 0.065];
+/** Preview ?mantra-rise: it starts below the bottom edge and travels up more slowly. */
+const MANTRA_RISE =
+  typeof window !== "undefined" &&
+  new URLSearchParams(window.location.search).has("mantra-rise");
+const RISE: readonly [number, number] = MANTRA_RISE ? [0.004, 0.02] : [0.004, 0.065];
+/** Preview: one word per line, so the letters can be huge and still span the screen. */
+const LINES = MANTRA_RISE
+  ? [...ODIA.split(" "), ...LATIN.split(" ")]
+  : [ODIA, LATIN, LATIN, LATIN, LATIN, LATIN];
+const isOdia = (i: number) => (MANTRA_RISE ? i < 3 : i === 0);
+/** Preview: how many times bigger than 'edge to edge' the words are drawn. */
+const MANTRA_SCALE = 2;
+const RISE_FROM = MANTRA_RISE ? 0.62 : 0.42;
 /** …and only then do the other lines roll in. */
 const ROLL_START = RISE[1];
 /** Seconds the roll takes to catch up with the scroll — glides instead of jumping. */
@@ -65,15 +76,38 @@ export function CylinderMantra({ reducedMotion }: { reducedMotion: boolean }) {
     let last = performance.now();
     let raf = 0;
     let fs = 0;
+    const sizes: number[] = [];
     const measure = () => {
+      if (MANTRA_RISE) {
+        // Poster style: every word is scaled so it spans the screen edge to edge
+        // (~1% margin each side), as tall as that makes it (capped at 80% of the height).
+        const target = window.innerWidth * 0.98;
+        const cap = window.innerHeight * 0.8 * MANTRA_SCALE;
+        let biggest = 0;
+        lines.current.forEach((el, i) => {
+          if (!el) return;
+          el.style.fontSize = "100px";
+          el.style.width = "max-content";
+          const w = el.getBoundingClientRect().width || 1;
+          el.style.width = "";
+          const size = Math.min((100 * target * MANTRA_SCALE) / w, cap);
+          el.style.fontSize = `${size.toFixed(1)}px`;
+          sizes[i] = size;
+          biggest = Math.max(biggest, size);
+        });
+        fs = biggest || 32;
+        wheel.style.transform = "none";
+        return;
+      }
       fs =
         parseFloat(getComputedStyle(lines.current[1] ?? wheel).fontSize) || 32;
       const radius = fs * 2.5;
       stage.style.perspective = `${fs * 7}px`;
-      wheel.style.transform = `translateZ(${-radius}px)`;
+      wheel.style.transform = MANTRA_RISE ? "none" : `translateZ(${-radius}px)`;
     };
     measure();
     window.addEventListener("resize", measure);
+    document.fonts?.ready.then(measure);
 
     const tick = () => {
       const p = ganeshaFx.progress;
@@ -116,15 +150,37 @@ export function CylinderMantra({ reducedMotion }: { reducedMotion: boolean }) {
       riseK +=
         (MathUtils.smoothstep(p, RISE[0], RISE[1]) - riseK) *
         (1 - Math.exp(-dt / ROLL_EASE));
-      const lift = (1 - riseK) ** 2 * window.innerHeight * 0.42;
+      const lift = (1 - riseK) ** 2 * window.innerHeight * RISE_FROM;
       stage.style.transform =
-        lift > 0.5 ? `translateY(${lift.toFixed(1)}px)` : "";
-      if (shown <= 0.002) {
+        !MANTRA_RISE && lift > 0.5 ? `translateY(${lift.toFixed(1)}px)` : "";
+      if (shown <= 0.002 && MANTRA_RISE) {
+        rollK = MathUtils.smootherstep(p, RISE[0], ROLL_END);
+      } else if (shown <= 0.002) {
         rollK =
           MathUtils.smootherstep(p, ROLL_START, ROLL_END) * (LINES.length - 1);
         riseK = MathUtils.smoothstep(p, RISE[0], RISE[1]);
       }
-      if (shown > 0.002) {
+      if (MANTRA_RISE) {
+        // Credits-style: every line travels from below the bottom edge to above the top.
+        const H = window.innerHeight;
+        const hs = LINES.map((_, i) => (sizes[i] || fs) * 1.05);
+        const centres: number[] = [];
+        let acc = 0;
+        hs.forEach((h) => {
+          centres.push(acc + h / 2);
+          acc += h;
+        });
+        const first = centres[0];
+        const range = centres[centres.length - 1] - first + H + (hs[0] + hs[hs.length - 1]) / 2;
+        const q = MathUtils.smootherstep(p, RISE[0], ROLL_END);
+        rollK += (q - rollK) * (1 - Math.exp(-dt / ROLL_EASE));
+        lines.current.forEach((el, i) => {
+          if (!el) return;
+          const y = centres[i] - first + H / 2 + hs[0] / 2 - rollK * range;
+          el.style.transform = `translateY(${y.toFixed(1)}px)`;
+          el.style.opacity = "1";
+        });
+      } else if (shown > 0.002) {
         const rollTarget =
           MathUtils.smootherstep(p, ROLL_START, ROLL_END) * (LINES.length - 1);
         rollK += (rollTarget - rollK) * (1 - Math.exp(-dt / ROLL_EASE));
@@ -148,6 +204,12 @@ export function CylinderMantra({ reducedMotion }: { reducedMotion: boolean }) {
     };
   }, [reducedMotion]);
 
+  // Preview ?mantra-rise: bigger letters (still ~6% margin each side) and a faint glow.
+  const previewStyle = MANTRA_RISE
+    ? {
+        filter: "drop-shadow(0 0 6px rgb(255 190 70 / 0.1))",
+      }
+    : {};
   const gradient = (i: number) => {
     const [a, b, c] = PALETTE[i % PALETTE.length];
     return `linear-gradient(180deg, ${a} 0%, ${b} 45%, ${c} 100%)`;
@@ -186,7 +248,7 @@ export function CylinderMantra({ reducedMotion }: { reducedMotion: boolean }) {
         ref={root}
         className="cyl-stage"
         aria-hidden
-        style={{ visibility: "hidden", opacity: 0 }}
+        style={{ visibility: "hidden", opacity: 0, ...(MANTRA_RISE ? { overflow: "hidden" } : {}) }}
       >
         <div ref={cyl} className="cyl-wheel">
           {LINES.map((text, i) => (
@@ -195,8 +257,8 @@ export function CylinderMantra({ reducedMotion }: { reducedMotion: boolean }) {
               ref={(el) => {
                 lines.current[i] = el;
               }}
-              className={`cyl-line ${i === 0 ? "cyl-line--odia font-odia" : "font-inscription"}`}
-              style={{ backgroundImage: gradient(i) }}
+              className={`cyl-line ${isOdia(i) ? "cyl-line--odia font-odia" : "font-inscription"}`}
+              style={{ backgroundImage: gradient(i), ...previewStyle }}
             >
               {text}
             </span>

@@ -9,8 +9,9 @@ import { Prewarm } from '../three/Prewarm'
 import { SceneCanvas } from '../three/SceneCanvas'
 import { WorldBackdrop } from './WorldBackdrop'
 import { GalaxyStars } from './GalaxyStars'
+import { FOOTER_CLOUDS, PageOneFooterClouds } from './PageOneFooterClouds'
 
-export const pageTwoExit = { offset: 0, visibleBottom: Infinity }
+export { pageTwoExit } from './pageTwoExit'
 
 function SharedGalaxy() {
   const reducedMotion = useReducedMotion()
@@ -40,6 +41,7 @@ function SharedGalaxy() {
       <WorldBackdrop continuous sunless />
       <GalaxyStars reducedMotion={reducedMotion} continuous constellation={tier !== 'low'} />
       <Prewarm models={[]} />
+      {FOOTER_CLOUDS && <PageOneFooterClouds />}
     </>
   )
 }
