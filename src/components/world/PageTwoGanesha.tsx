@@ -1,6 +1,6 @@
 import { Environment, Lightformer } from '@react-three/drei'
 import { useFrame, useThree } from '@react-three/fiber'
-import { useLayoutEffect, useRef, type RefObject } from 'react'
+import { useLayoutEffect, useMemo, useRef, type RefObject } from 'react'
 import { Group, MathUtils, Mesh, Vector3, type BufferAttribute, type BufferGeometry, type MeshLambertMaterial, type MeshStandardMaterial, type Object3D, type Points, type ShaderMaterial } from 'three'
 import { ScrollTrigger } from '../../lib/gsap'
 import { pointer } from '../../lib/pointer'
@@ -22,6 +22,79 @@ const ENTRY_ANGLE = MathUtils.degToRad(-12)
 const EXIT_ANGLE = MathUtils.degToRad(28)
 const EXIT_ROTATION_RESPONSE = 16
 const PEAK_GLOW = 0.65
+// Opt-in only: the locked original scene is unchanged without aura=1.
+const AURA_EXPERIMENT = typeof window !== 'undefined' &&
+  new URLSearchParams(window.location.search).get('aura') === '1'
+const AURA_SETTINGS = { aura: 0.57, rays: 0.43, violet: 0.38, lotus: 0.27, rayCount: 48 } as const
+const lotusAuraGlow = { value: 0 }
+
+const AURA_VERTEX = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`
+
+// One bounded billboard: soft halo, irregular polar rays and two-scale haze.
+// Normal alpha blending is intentional: this canvas is composited over a
+// separate galaxy canvas, so the stars remain visible through the light.
+const AURA_FRAGMENT = /* glsl */ `
+  varying vec2 vUv;
+  uniform float uTime, uFade, uAura, uRays, uViolet, uLotus, uRayCount;
+  const float TAU = 6.28318530718;
+  float hash(float x) {
+    return fract(sin(x * 127.1 + 19.17) * 43758.5453);
+  }
+  float cloud(vec2 p) {
+    return 0.5 + 0.5 * sin(p.x * 5.7 + sin(p.y * 4.4))
+                       * cos(p.y * 6.1 - sin(p.x * 3.3));
+  }
+  void main() {
+    // Local coordinates in the same units as the original scanned model.
+    vec2 p = (vUv - 0.5) * vec2(0.90, 0.55);
+    vec2 head = p - vec2(0.0, 0.085);
+    float r = length(head);
+    float breathe = 0.94 + 0.06 * sin(uTime * 0.85);
+    float halo = uAura * breathe * (
+      0.62 * exp(-dot(head, head) / 0.0036) +
+      0.34 * exp(-dot(head, head) / 0.018)
+    );
+    // Exactly 48 angular cells, with stable per-ray width/length/intensity.
+    // No 48-iteration loop, no ray marching, no textures.
+    float angle = atan(head.y, head.x + 0.000001);
+    float rayCell = fract((angle + 3.14159265) / TAU + uTime * 0.0022) * uRayCount;
+    float id = floor(rayCell);
+    float seed = hash(id);
+    float localAngle = fract(rayCell) - 0.5;
+    float width = mix(0.10, 0.29, hash(id + 7.0));
+    float beam = exp(-pow(localAngle / width, 2.0));
+    float reach = mix(0.16, 0.38, hash(id + 31.0));
+    float rayFade = 1.0 - smoothstep(0.045, reach, r);
+    float flicker = 0.90 + 0.10 * sin(uTime * 0.65 + seed * TAU);
+    float rays = uRays * beam * rayFade * smoothstep(0.025, 0.075, r)
+      * mix(0.15, 0.65, seed) * flicker;
+    // Soft violet atmosphere, not a hard ring or a new background.
+    vec2 q = head * 8.0;
+    float mist = 0.55 * cloud(q + vec2(uTime * 0.045, 0.0))
+               + 0.45 * cloud(q * 1.8 + vec2(0.0, -uTime * 0.035));
+    float violet = uViolet * (0.20 + 0.45 * mist)
+      * exp(-dot(head, head) / 0.055) * smoothstep(0.035, 0.13, r);
+    // A broad, soft pink-gold reflection under the petal roots.
+    vec2 lower = (p - vec2(0.0, -0.105)) / vec2(0.19, 0.075);
+    float lotus = uLotus * 0.66 * exp(-dot(lower, lower)) * breathe;
+    float edge = (1.0 - smoothstep(0.32, 0.50, abs(vUv.x - 0.5)))
+               * (1.0 - smoothstep(0.32, 0.50, abs(vUv.y - 0.5)));
+    float energy = halo + rays + violet + lotus;
+    vec3 light = halo * vec3(1.0, 0.66, 0.30)
+               + rays * vec3(1.0, 0.77, 0.42)
+               + violet * vec3(0.43, 0.25, 0.72)
+               + lotus * vec3(1.0, 0.58, 0.53);
+    vec3 color = light / max(energy, 0.0001);
+    float alpha = (1.0 - exp(-energy * 1.45)) * edge * uFade;
+    gl_FragColor = vec4(color, alpha);
+  }
+`
 const SWAY_ANGLE = MathUtils.degToRad(1.2)
 const SEAT_HEIGHT = 0.08
 const FRAMING_ASPECT_LIMIT = 1.16
@@ -32,7 +105,7 @@ export const ganeshaPosition = { sample: null as (() => Vector3 | null) | null }
 function gradePetals(material: LotusMesh['material']) {
   const opening = { value: 0 }
   petalBreath.set(material, opening)
-  material.customProgramCacheKey = () => 'page-two-lotus-blush-breath'
+  material.customProgramCacheKey = () => AURA_EXPERIMENT ? 'page-two-lotus-blush-breath-aura' : 'page-two-lotus-blush-breath'
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uPetalBreath = opening
     shader.vertexShader = shader.vertexShader
@@ -48,6 +121,17 @@ function gradePetals(material: LotusMesh['material']) {
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>\nvarying vec3 vPetalPosition;\n${lotusGrade}`)
       .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb = lotusGrade(diffuseColor.rgb, vPetalPosition);')
+    if (AURA_EXPERIMENT) {
+      shader.uniforms.uLotusAuraGlow = lotusAuraGlow
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', '#include <common>\nuniform float uLotusAuraGlow;')
+        .replace('#include <emissivemap_fragment>', /* glsl */ `
+          #include <emissivemap_fragment>
+          float rootLight = (1.0 - smoothstep(0.035, 0.19, length(vPetalPosition.xz)))
+                          * (1.0 - smoothstep(0.045, 0.135, vPetalPosition.y));
+          totalEmissiveRadiance += vec3(1.0, 0.64, 0.30) * rootLight * uLotusAuraGlow;
+        `)
+    }
   }
 }
 
@@ -115,6 +199,13 @@ function LotusFigure({ frame }: { frame: RefObject<HTMLDivElement | null> }) {
   const getSceneState = useThree((state) => state.get)
   const reducedMotion = useReducedMotion()
   const model = useRef<Group>(null)
+  const auraMaterial = useRef<ShaderMaterial>(null)
+  const auraUniforms = useMemo(() => ({
+    uTime: { value: 0 }, uFade: { value: 0 },
+    uAura: { value: AURA_SETTINGS.aura }, uRays: { value: AURA_SETTINGS.rays },
+    uViolet: { value: AURA_SETTINGS.violet }, uLotus: { value: AURA_SETTINGS.lotus },
+    uRayCount: { value: AURA_SETTINGS.rayCount },
+  }), [])
   const entry = useRef<ScrollTrigger | null>(null)
   const exit = useRef<ScrollTrigger | null>(null)
   const idleTime = useRef(0)
@@ -218,6 +309,15 @@ function LotusFigure({ frame }: { frame: RefObject<HTMLDivElement | null> }) {
     ganeshaPose.uFigureStretch.value.set(bodyWidth, 1 + inhale * (0.024 + 0.062 * hover.current))
     const opening = petalBreath.get(petals.material)
     if (opening) opening.value = inhale * hover.current
+    if (AURA_EXPERIMENT && auraMaterial.current) {
+      // The aura follows the existing chapter motion and settles with the
+      // sculpture; it never changes the scroll timeline or model geometry.
+      const fade = MathUtils.smoothstep(progress, 0.35, 0.96)
+        * (1 - MathUtils.smoothstep(departureProgress, 0, 0.90))
+      auraMaterial.current.uniforms.uFade.value = fade
+      auraMaterial.current.uniforms.uTime.value = reducedMotion ? 0 : idleTime.current
+      lotusAuraGlow.value = AURA_SETTINGS.lotus * fade * (0.96 + 0.04 * inhale)
+    }
     const glow = MathUtils.smootherstep(progress, 0.32, 1)
     petals.material.emissiveIntensity = glow * PEAK_GLOW
     figure.material.emissiveIntensity = glow * PEAK_GLOW * 0.6
@@ -232,8 +332,30 @@ function LotusFigure({ frame }: { frame: RefObject<HTMLDivElement | null> }) {
     }
   })
 
+  // Keep the billboard behind even the rotated model. Compensate for
+  // perspective at its depth so its projected centre tracks the statue.
+  const auraDepth = 0.25 * scale
+  const auraPerspective = (6 + auraDepth) / 6
+
   return (
     <>
+      {AURA_EXPERIMENT && (
+        <mesh
+          position={[0, (0.15 - LOTUS_PIVOT.y) * scale * auraPerspective, -auraDepth]}
+          renderOrder={-1}
+        >
+          <planeGeometry args={[0.90 * scale * auraPerspective, 0.55 * scale * auraPerspective]} />
+          <shaderMaterial
+            ref={auraMaterial}
+            uniforms={auraUniforms}
+            vertexShader={AURA_VERTEX}
+            fragmentShader={AURA_FRAGMENT}
+            transparent
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </mesh>
+      )}
       <Environment frames={1} resolution={64} environmentIntensity={0.55}>
         <Lightformer position={[-3, 3, 4]} target={[0, 0, 0]} scale={[4, 3, 1]} intensity={2} color="#ffe7cb" />
         <Lightformer position={[3, 2, -4]} target={[0, 0, 0]} scale={[2, 4, 1]} intensity={1.5} color="#c7b6ff" />
