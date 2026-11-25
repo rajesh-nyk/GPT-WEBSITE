@@ -1848,16 +1848,13 @@ html.cinematic-scroll { touch-action: pan-x pinch-zoom; }
 .chapter-panel { position: relative; isolation: isolate; overflow: hidden; width: 100%; }
 .chapter-panel--hero { background: #050509; }
 
-/* Single diagonal leading edge, with the purple panel moving in document space.
-   The overhang allows the right edge to enter before the left. */
-.chapter-panel--sliced { overflow: visible; }
+/* Curved optical glass wipe, feathered by a scroll-linked SVG mask. */
+.chapter-panel--sliced { overflow: visible; --glass-energy: 0; }
 .page-angle {
   --overhang: min(28vh, 20vw);
-  --lead: 0px;
   position: absolute;
   inset: calc(-1 * var(--overhang)) 0 0;
   background: #07060d;
-  clip-path: polygon(0 var(--overhang), 100% calc(var(--overhang) - var(--lead)), 100% 100%, 0 100%);
   pointer-events: none;
 }
 
@@ -1883,35 +1880,29 @@ html.cinematic-scroll { touch-action: pan-x pinch-zoom; }
     radial-gradient(ellipse 60% 3.2% at 50% 100%, rgb(220 211 255 / .10), transparent);
   pointer-events: none;
 }
-/* Specular edge anchored at the left corner of the real wipe. The highlight
-   is brightest during the movement, and softens into a resting glass rim. */
-.page-glass-rim {
-  --rim-angle: 0rad;
-  --rim-width: 100%;
-  --rim-energy: 0;
+/* The same Bézier curve drives the feathered boundary and its optical rim. */
+.page-angle-defs { position: absolute; pointer-events: none; }
+.page-angle-rim {
   position: absolute;
-  left: 0; top: var(--overhang);
-  width: var(--rim-width); height: 32px;
-  transform-origin: 0 0;
-  transform: rotate(var(--rim-angle));
-  background:
-    linear-gradient(to bottom, rgb(255 255 255 / .56) 0px, rgb(216 227 255 / .24) 1px, rgb(133 158 220 / .11) 3px, transparent 17px);
-  opacity: calc(.28 + var(--rim-energy) * .65);
+  inset: calc(-1 * min(28vh, 20vw)) 0 0;
+  width: 100%;
+  height: calc(100% + min(28vh, 20vw));
+  overflow: visible;
   pointer-events: none;
 }
-.page-glass-rim::before {
-  content: "";
-  position: absolute; inset: 0 0 auto; height: 7px;
-  background:
-    linear-gradient(to bottom, transparent, rgb(0 0 0 / .65)),
-    linear-gradient(90deg, transparent 5%, #94a6ff 25%, #b9fff5 40%, #fff6cf 51%, #f1b6bc 62%, #8b8ee8 76%, transparent 95%);
-  opacity: calc(var(--rim-energy) * .76);
-  filter: blur(.8px);
+.page-angle-rim use { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.page-angle-rim__bloom {
+  stroke-width: 17px;
+  filter: blur(5px);
+  opacity: calc(var(--glass-energy) * .32);
 }
-.page-glass-rim::after {
-  content: "";
-  position: absolute; inset: 0 0 auto; height: 24px;
-  background: radial-gradient(ellipse 45% 75% at 51% 0%, rgb(239 235 255 / .43), rgb(166 190 255 / .10) 42%, transparent 84%);
-  filter: blur(2px);
-  opacity: var(--rim-energy);
+.page-angle-rim__bevel {
+  stroke-width: 5px;
+  filter: blur(1.7px);
+  opacity: calc(var(--glass-energy) * .62);
+}
+.page-angle-rim__line {
+  stroke-width: .85px;
+  filter: blur(.6px);
+  opacity: calc(.12 + var(--glass-energy) * .26);
 }
