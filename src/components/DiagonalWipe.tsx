@@ -21,6 +21,11 @@ export function DiagonalWipe({ from, className = '', children, geometry, holdOut
     const edge = rim.current
     if (!source || !panel || !edge || reducedMotion) return
 
+    // Extend only the outgoing sky under the diagonal. Ganesha and the
+    // full page-two stage keep their original size and natural document motion.
+    const outgoingSky = holdOutgoing
+      ? source.querySelector<HTMLElement>('.page-two-stage > .page-angle')
+      : null
     let lead = 0
     let clearance = 0
     const update = ({ progress, start, end }: ScrollTrigger) => {
@@ -33,16 +38,11 @@ export function DiagonalWipe({ from, className = '', children, geometry, holdOut
       }
       if (holdOutgoing) {
         const distance = Math.max(1, end - start)
-        // Both pages travel upward. Keep just enough overlap for the diagonal
-        // to enter without exposing the document background, then smoothly
-        // release the outgoing stage into the same natural scroll motion.
-        const travel = distance * p
-        const available = Math.max(0, travel - Math.max(0, shift))
-        const ramp = Math.min(1, available / Math.max(1, distance * 0.08))
-        const ease = ramp * ramp * (3 - 2 * ramp)
-        holdOutgoing.offset = Math.max(0, travel - available * ease)
+        // Zero compensation from the very first pixel of scroll.
+        // Both chapters now follow the same document displacement immediately.
+        // The sky overscan, not a hold on the outgoing stage, covers the seam.
+        holdOutgoing.offset = 0
         holdOutgoing.visibleBottom = Math.max(0, Math.min(window.innerHeight, distance * (1 - p) + shift))
-        source.style.setProperty('--wipe-hold-offset', `${holdOutgoing.offset}px`)
       }
       const offset = `${shift}px`
       panel.style.clipPath = `polygon(0 calc(var(--overhang) + ${offset}), 100% calc(var(--overhang) + ${offset} - var(--lead)), 100% 100%, 0 100%)`
@@ -62,6 +62,9 @@ export function DiagonalWipe({ from, className = '', children, geometry, holdOut
       const overhang = Math.min(window.innerHeight * 0.28, window.innerWidth * 0.20)
       lead = Math.min(window.innerHeight * 0.23, window.innerWidth * 0.16, Math.max(0, overhang - 42))
       clearance = Math.min(40, Math.max(0, overhang - lead - 2))
+      // The largest positive edge shift is lead at p=0. Extend the existing
+      // sky by that amount so there is no gap even with zero outgoing hold.
+      if (outgoingSky) outgoingSky.style.bottom = `${-Math.ceil(lead + 2)}px`
       const width = Math.max(1, panel.clientWidth)
       // Only resizes change the angle. Scroll moves the edge without changing its slope.
       panel.style.setProperty('--lead', `${lead.toFixed(2)}px`)
@@ -80,6 +83,7 @@ export function DiagonalWipe({ from, className = '', children, geometry, holdOut
 
     return () => {
       trigger.kill()
+      outgoingSky?.style.removeProperty('bottom')
       if (geometry) geometry.shift = geometry.lead = 0
       if (holdOutgoing) {
         holdOutgoing.offset = 0
