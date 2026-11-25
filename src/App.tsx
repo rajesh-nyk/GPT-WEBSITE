@@ -47,6 +47,7 @@ export default function App() {
           data-scroll-scene=""
           aria-label="Page 2"
           className="relative z-10 min-h-dvh w-full text-gold-light"
+          style={{ background: 'linear-gradient(155deg, #170d35 0%, #49218a 48%, #782cc2 100%)' }}
         />
       </main>
       <div className="scene-fps" aria-label="Performance testing">
