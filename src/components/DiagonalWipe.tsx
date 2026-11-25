@@ -21,6 +21,24 @@ export function DiagonalWipe({ from, className = '', children, geometry, holdOut
     const edge = rim.current
     if (!source || !panel || !edge || reducedMotion) return
 
+    const outgoingStage = holdOutgoing ? source.querySelector<HTMLElement>('.page-two-stage') : null
+    let pinned = false
+    const setPinned = (next: boolean) => {
+      if (!outgoingStage || next === pinned) return
+      pinned = next
+      if (next) {
+        // Fixed to the viewport, not a per-frame approximation of scroll displacement.
+        Object.assign(outgoingStage.style, {
+          position: 'fixed', top: '0', left: '0', width: '100%',
+          height: '100dvh', transform: 'none',
+        })
+      } else {
+        for (const property of ['position', 'top', 'left', 'width', 'height', 'transform']) {
+          outgoingStage.style.removeProperty(property)
+        }
+      }
+    }
+
     let lead = 0
     let clearance = 0
     const update = ({ progress, start, end }: ScrollTrigger) => {
@@ -33,12 +51,15 @@ export function DiagonalWipe({ from, className = '', children, geometry, holdOut
       }
       if (holdOutgoing) {
         const distance = Math.max(1, end - start)
-        // Pin the outgoing composition until the diagonal has completely covered it.
-        // Release only once hidden, so Ganesha never slides out under a moving edge.
-        // The same mapping is reversible when scrolling back.
-        holdOutgoing.offset = p < 1 ? distance * p : 0
+        // At the fully arrived page (50% overall), lock page two at viewport Y=0.
+        // Only page three moves. Keep the actual scroll displacement for sky scissoring.
+        const isCovered = distance * (1 - p) + shift <= 0
+        const shouldPin = p > 0 && !isCovered
+        setPinned(shouldPin)
+        holdOutgoing.offset = shouldPin ? Math.max(0, window.scrollY - start) : 0
         holdOutgoing.visibleBottom = Math.max(0, Math.min(window.innerHeight, distance * (1 - p) + shift))
-        source.style.setProperty('--wipe-hold-offset', `${holdOutgoing.offset}px`)
+        // Retain transform fallback for other outgoing scenes, if used in future.
+        if (!outgoingStage) source.style.setProperty('--wipe-hold-offset', `${holdOutgoing.offset}px`)
       }
       const offset = `${shift}px`
       panel.style.clipPath = `polygon(0 calc(var(--overhang) + ${offset}), 100% calc(var(--overhang) + ${offset} - var(--lead)), 100% 100%, 0 100%)`
@@ -76,6 +97,7 @@ export function DiagonalWipe({ from, className = '', children, geometry, holdOut
 
     return () => {
       trigger.kill()
+      setPinned(false)
       if (geometry) geometry.shift = geometry.lead = 0
       if (holdOutgoing) {
         holdOutgoing.offset = 0
