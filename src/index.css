@@ -1930,3 +1930,7 @@ html.cinematic-scroll { touch-action: pan-x pinch-zoom; }
   filter: blur(.8px);
   opacity: var(--rim-energy);
 }
+
+/* Shared viewport atmosphere: passes over the glass seam without changing its geometry. */
+.cloud-journey { position: fixed; inset: 0; overflow: clip; pointer-events: none; z-index: 15; opacity: 0; }
+.cloud-journey__bank { position: absolute; top: 0; left: 0; max-width: none; object-fit: fill; transform-origin: center top; will-change: transform; pointer-events: none; user-select: none; }
