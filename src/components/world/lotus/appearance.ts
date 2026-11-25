@@ -44,53 +44,95 @@ export const ganeshaPoseGLSL = /* glsl */ `
     return ganeshaTwist(normal / stretch, weight);
   }`
 
-/** Sparse highlights anchored to the baked ornament and seam tags. */
+export const ornamentSweep = { value: new Vector2(0, 0) }
+
+export const ornamentSweepGLSL = /* glsl */ `
+  uniform vec2 uOrnamentSweep;
+  float arrivalGlint(float height) {
+    float center = mix(0.286, 0.145, uOrnamentSweep.x);
+    float offset = (height - center) / 0.032;
+    return exp(-offset * offset) * uOrnamentSweep.y;
+  }
+`
+
+/** Highlights on the metalwork, with larger catches on a few visible landmarks. */
 export function makeOrnamentGlints(geometry: BufferGeometry, spark: BufferAttribute) {
   const position = geometry.getAttribute('position')
   const normal = geometry.getAttribute('normal')
   const anchors: number[] = []
   for (let i = 0; i < spark.count; i++) {
-    if (spark.getX(i) > 0.25) anchors.push(i)
+    const wrist = Math.abs(position.getX(i)) > 0.077 && position.getY(i) > 0.142 && position.getY(i) < 0.177
+    if (wrist && spark.getX(i) > 0.25 && normal.getZ(i) > 0.08) anchors.push(i)
   }
-  const step = Math.max(1, Math.floor(anchors.length / 110))
+  const step = Math.max(1, Math.ceil(anchors.length / 29))
   const positions: number[] = []
   const sizes: number[] = []
-  for (let i = 0; i < anchors.length; i += step) {
-    const vertex = anchors[i]
+  const add = (vertex: number, size: number) => {
     positions.push(
       position.getX(vertex) + normal.getX(vertex) * 0.0018,
       position.getY(vertex) + normal.getY(vertex) * 0.0018,
-      position.getZ(vertex) + normal.getZ(vertex) * 0.0018,
+      position.getZ(vertex) + Math.max(normal.getZ(vertex), 0.24) * 0.0034,
     )
-    sizes.push(((i * 0.61803398875) % 1) ** 2)
+    sizes.push(size)
+  }
+  for (let i = 0; i < anchors.length; i += step) {
+    add(anchors[i], 0.12 + 0.19 * ((i * 0.61803398875) % 1))
+  }
+  // Local x/y coordinates of crown filigree, the axe edge, the bowl rim and jewelry.
+  const landmarks = [
+    [-0.026, 0.254, 0.78], [0.001, 0.281, 0.93], [0.026, 0.253, 0.62],
+    [-0.091, 0.232, 0.88], [-0.083, 0.211, 0.46], [0.054, 0.158, 0.73, 0.0035],
+    [0.072, 0.158, 0.50, 0.0035], [-0.012, 0.160, 0.65, 0.004], [0.005, 0.149, 0.81, 0.004],
+  ]
+  for (const [x, y, size, radius = 0.009] of landmarks) {
+    let best = -1
+    let bestScore = -Infinity
+    for (let i = 0; i < position.count; i++) {
+      const distance = (position.getX(i) - x) ** 2 + (position.getY(i) - y) ** 2
+      if (distance > radius ** 2 || normal.getZ(i) < -0.12) continue
+      const score = position.getZ(i) - 380 * distance
+      if (score > bestScore) {
+        best = i
+        bestScore = score
+      }
+    }
+    if (best !== -1) add(best, size)
   }
   const points = new BufferGeometry()
   points.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3))
   points.setAttribute('aSize', new BufferAttribute(new Float32Array(sizes), 1))
+  points.setAttribute('aPhase', new BufferAttribute(Float32Array.from(sizes, (_, i) => (i * 0.61803398875) % 1), 1))
   return new Points(points, new ShaderMaterial({
     transparent: true,
     depthWrite: false,
     blending: AdditiveBlending,
     toneMapped: false,
-    uniforms: { ...ganeshaPose, uGlow: { value: 0 }, uDpr: { value: 1 } },
+    uniforms: { ...ganeshaPose, uGlow: { value: 0 }, uDpr: { value: 1 }, uTime: { value: 0 }, uOrnamentSweep: ornamentSweep },
     vertexShader: /* glsl */ `
-      attribute float aSize;
+      attribute float aSize, aPhase;
       uniform float uDpr;
-      varying float vSize;
+      varying float vSize, vPhase, vHeight;
       ${ganeshaPoseGLSL}
       void main() {
         vSize = aSize;
-        gl_PointSize = (3.5 + aSize * 10.0) * uDpr;
+        vPhase = aPhase;
+        vHeight = position.y;
+        gl_PointSize = (3.5 + aSize * 18.0) * uDpr;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(ganeshaPosePoint(position), 1.0);
       }`,
     fragmentShader: /* glsl */ `
-      uniform float uGlow;
-      varying float vSize;
+      uniform float uGlow, uTime;
+      varying float vSize, vPhase, vHeight;
+      ${ornamentSweepGLSL}
       void main() {
         vec2 p = abs(gl_PointCoord - 0.5);
-        float core = exp(-dot(p, p) * 86.0);
-        float rays = (exp(-p.x * 45.0) + exp(-p.y * 45.0)) * (1.0 - smoothstep(0.0, 0.45, max(p.x, p.y)));
-        gl_FragColor = vec4(1.0, 0.85, 0.58, min(1.0, core * 1.65 + rays * vSize * 0.55) * uGlow);
+        float core = exp(-dot(p, p) * 92.0);
+        float rays = (exp(-p.x * 46.0) + exp(-p.y * 46.0)) * (1.0 - smoothstep(0.02, 0.47, max(p.x, p.y)));
+        float flash = pow(0.5 + 0.5 * cos(uTime * 1.55 + vPhase * 6.283185), 8.0);
+        float sweep = arrivalGlint(vHeight);
+        float radiance = core * (0.58 + 0.31 * flash + 1.32 * sweep)
+          + rays * vSize * (0.19 + 0.24 * flash + 0.82 * sweep);
+        gl_FragColor = vec4(1.0, 0.91, 0.69, min(1.0, radiance) * uGlow);
       }`,
   }))
 }

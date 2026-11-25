@@ -8,7 +8,6 @@ import { useReducedMotion } from '../../lib/useReducedMotion'
 import { heroFx } from '../hero/fx'
 import { QualityEffects } from '../three/QualityEffects'
 import { JourneyDirector } from './journey'
-import { GalaxyStars } from './GalaxyStars'
 import { screenShapes } from './screenShapes'
 import { TravelingWheel } from './TravelingWheel'
 import { WorldBackdrop } from './WorldBackdrop'
@@ -70,7 +69,7 @@ function HeroGpuTiming() {
 /** The approved page-one scene, without later chapters or their runtime assets. */
 export function PageOneWorld() {
   const reducedMotion = useReducedMotion()
-  const { tier, postprocessing } = useQuality()
+  const { postprocessing } = useQuality()
   const pointer = useSmoothedPointer(2)
   const bloom = useRef<BloomEffect>(null)
   const bloomBase = useRef<number | null>(null)
@@ -115,8 +114,7 @@ export function PageOneWorld() {
   return (
     <>
       <JourneyDirector reducedMotion={reducedMotion} directScroll />
-      <WorldBackdrop continuous />
-      <GalaxyStars reducedMotion={reducedMotion} constellation={tier !== 'low'} continuous clipHero />
+      <WorldBackdrop continuous sunlightOnly />
       <WorldLighting heroOnly />
       <TravelingWheel pointer={pointer} reducedMotion={reducedMotion} anchorY={anchorY} pageTransition />
       <QualityEffects bloomRef={bloom} bloomIntensity={0.45} bloomThreshold={0.86} vignette={0.4} />

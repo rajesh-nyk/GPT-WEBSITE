@@ -1869,12 +1869,49 @@ html.cinematic-scroll { touch-action: pan-x pinch-zoom; }
    chapter offset is driven by the existing spring navigator. No per-element
    translations or background pinning are used during the vertical slide. */
 .chapter-panel { position: relative; isolation: isolate; overflow: hidden; width: 100%; }
+.blessing-journey { isolation: isolate; }
+.blessing-journey > .chapter-panel { isolation: auto; }
 .chapter-panel--hero { background: #050509; }
+.blessing-journey > .chapter-panel--hero { background: transparent; }
+.blessing-journey-sky {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: #0a0a0c;
+}
+.blessing-journey-sky__viewport {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+}
+.blessing-journey-mist {
+  --mist-visible: 0;
+  position: absolute;
+  z-index: 2;
+  inset: 23% 0 0;
+  pointer-events: none;
+  opacity: var(--mist-visible);
+  background:
+    radial-gradient(ellipse 24% 48% at 46% 36%, rgb(104 60 174 / .29), rgb(80 46 139 / .14) 57%, transparent),
+    radial-gradient(ellipse 35% 26% at 52% 61%, rgb(125 74 186 / .32), rgb(89 52 155 / .15) 62%, transparent),
+    radial-gradient(ellipse 31% 21% at 34% 20%, rgb(95 54 161 / .17), transparent),
+    radial-gradient(ellipse 49% 38% at 58% 54%, rgb(85 48 147 / .12), transparent);
+}
+.blessing-journey-mist::before {
+  content: '';
+  position: absolute;
+  inset: 8% 13% 24%;
+  rotate: -17deg;
+  background:
+    radial-gradient(ellipse 47% 11% at 45% 38%, rgb(130 78 192 / .23), transparent),
+    radial-gradient(ellipse 39% 13% at 57% 59%, rgb(115 66 183 / .18), transparent);
+}
 
 /* Single diagonal leading edge, with the purple panel moving in document space.
    The overhang allows the right edge to enter before the left. */
 .chapter-panel--sliced { overflow: visible; }
-.page-two-stage { transform: translateY(var(--wipe-hold-offset, 0px)); }
+.ganesha-shot { z-index: 3; }
 .ganesha-shot canvas { opacity: 0; }
 .ganesha-shot[data-model-painted] canvas { opacity: 1; }
 @media (prefers-reduced-motion: no-preference) {
@@ -1892,27 +1929,6 @@ html.cinematic-scroll { touch-action: pan-x pinch-zoom; }
 }
 .page-angle--purple {
   background: linear-gradient(145deg, var(--color-purple-night), var(--color-purple-shadow) 54%, var(--color-purple-glow));
-}
-
-/* Dark optical glass: clear centre, curved-looking specular shoulders,
-   and a narrow dispersive bevel. Keep the original stars legible. */
-.page-two-sky, .page-glass { position: absolute; inset: 0; }
-.page-two-sky { filter: saturate(1.12) contrast(1.06); }
-.page-glass {
-  background:
-    radial-gradient(ellipse at 49% 48%, transparent 28%, rgb(13 7 29 / .12) 68%, rgb(1 0 5 / .65) 100%),
-    radial-gradient(ellipse 90% 18% at 50% 0%, rgb(226 215 255 / .10), transparent 85%),
-    radial-gradient(ellipse 80% 22% at 50% 100%, rgb(158 130 230 / .095), transparent 90%),
-    linear-gradient(155deg, rgb(23 13 53 / .11) 0%, rgb(73 33 138 / .07) 48%, rgb(120 44 194 / .13) 100%);
-  /* The sky is opaque; grade its layer directly instead of sampling the moving backdrop. */
-  pointer-events: none;
-}
-.page-glass::before {
-  content: "";
-  position: absolute; inset: 0;
-  background:
-    radial-gradient(ellipse 60% 3.2% at 50% 100%, rgb(220 211 255 / .10), transparent);
-  pointer-events: none;
 }
 /* Specular edge anchored at the left corner of the real wipe. The highlight
    is brightest during the movement, and softens into a resting glass rim. */
@@ -1945,4 +1961,64 @@ html.cinematic-scroll { touch-action: pan-x pinch-zoom; }
   background: radial-gradient(ellipse 45% 75% at 51% 0%, rgb(239 235 255 / .22), rgb(166 190 255 / .10) 42%, transparent 84%);
   filter: blur(.8px);
   opacity: var(--rim-energy);
+}
+
+.page-two-invocation {
+  position: absolute;
+  z-index: 1;
+  inset-inline: 1rem;
+  bottom: max(4.5dvh, calc(env(safe-area-inset-bottom, 0px) + 12px));
+  opacity: 0;
+  text-align: center;
+  text-shadow: 0 2px 10px #120a1d;
+  pointer-events: none;
+}
+
+.page-two-invocation__title {
+  display: inline-block;
+  margin: 0;
+  color: #fff1cc;
+  font: 650 clamp(1.45rem, min(5.7vw, 4.8dvh), 2.55rem) / 1.25 var(--font-odia);
+  white-space: nowrap;
+}
+
+.page-two-invocation__romanization {
+  margin: 0.8em 0 0;
+  color: #ffe8bd;
+  font: 650 clamp(0.83rem, 1.22vw, 1.1rem) / 1.45 var(--font-inscription);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+@media (min-width: 900px) and (min-aspect-ratio: 5/4) {
+  .page-two-invocation {
+    inset: 43% auto auto 7.25%;
+    width: 29%;
+    translate: 0 -50%;
+    text-align: start;
+  }
+
+  .page-two-invocation__title {
+    font-size: clamp(1.65rem, min(3.1vw, 6dvh), 3.6rem);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) and (forced-colors: none) {
+  .page-two-invocation__title {
+    /* Cross two differently spaced masks to break up contours across the heading. */
+    --mantra-gap: rgb(0 0 0 / var(--mantra-fragments, 1));
+    mask-image:
+      repeating-linear-gradient(113deg, #000 0 0.12em, var(--mantra-gap) 0.14em 0.22em,
+        #000 0.24em 0.39em, var(--mantra-gap) 0.41em 0.49em, #000 0.51em 0.63em),
+      repeating-linear-gradient(12deg, #000 0 0.16em, var(--mantra-gap) 0.18em 0.24em, #000 0.26em 0.43em);
+    mask-composite: intersect;
+    -webkit-text-fill-color: color-mix(in srgb, currentColor calc(12% + var(--mantra-fill, 1) * 88%), transparent);
+    -webkit-text-stroke: clamp(0.65px, 0.027em, 1.35px)
+      color-mix(in srgb, currentColor calc((1 - var(--mantra-fill, 1)) * 95%), transparent);
+  }
+
+  .page-two-invocation__romanization {
+    opacity: var(--mantra-romanization, 1);
+    translate: 0 calc((1 - var(--mantra-romanization, 1)) * 0.5em);
+  }
 }

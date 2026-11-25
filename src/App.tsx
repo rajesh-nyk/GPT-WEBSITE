@@ -4,7 +4,7 @@ import { WorldCanvas } from './components/world/WorldCanvas'
 import { SlicedPageTwo } from './components/SlicedPageTwo'
 import { DiagonalWipe } from './components/DiagonalWipe'
 import { ganeshaPosition } from './components/world/PageTwoGanesha'
-import { pageTwoExit } from './components/world/PageTwoSky'
+import { BlessingSky, pageTwoExit } from './components/world/PageTwoSky'
 
 const formatAxis = (value: number) => (Math.abs(value) < 0.005 ? 0 : value).toFixed(2)
 
@@ -71,11 +71,15 @@ export default function App() {
   return (
     <>
       <main className="relative">
-        <div className="chapter-panel chapter-panel--hero">
-          <WorldCanvas />
-          <Hero nextId="page-2" />
+        <div className="blessing-journey relative">
+          <BlessingSky />
+          <div className="chapter-panel chapter-panel--hero">
+            <WorldCanvas />
+            <Hero nextId="page-2" />
+          </div>
+          <SlicedPageTwo />
+          <div className="blessing-journey-mist" aria-hidden="true" />
         </div>
-        <SlicedPageTwo />
         <section id="page-3" data-scroll-scene="" aria-label="Page 3" className="chapter-panel chapter-panel--sliced z-20 h-dvh">
           <DiagonalWipe from="page-2" className="page-angle--purple" holdOutgoing={pageTwoExit} />
         </section>

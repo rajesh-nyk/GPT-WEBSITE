@@ -1,135 +1,83 @@
-import { useEffect, useRef, useState } from 'react'
-import { useFrame, useThree } from '@react-three/fiber'
-import { Vector2 } from 'three'
-import { gsap, ScrollTrigger } from '../../lib/gsap'
+import { useEffect, useRef } from 'react'
+import { useFrame } from '@react-three/fiber'
+import { MathUtils } from 'three'
+import { gsap } from '../../lib/gsap'
+import { useQuality } from '../../lib/quality'
 import { useReducedMotion } from '../../lib/useReducedMotion'
+import { heroFx } from '../hero/fx'
 import { Prewarm } from '../three/Prewarm'
 import { SceneCanvas } from '../three/SceneCanvas'
 import { WorldBackdrop } from './WorldBackdrop'
 import { GalaxyStars } from './GalaxyStars'
 
-// CSS wipe publishes its exact local geometry; no layout read is needed per frame.
-export const skyWipe = { shift: 0, lead: 0 }
 export const pageTwoExit = { offset: 0, visibleBottom: Infinity }
-const skyClipTop = new Vector2(1, 1)
 
-function SkyScene() {
+function SharedGalaxy() {
   const reducedMotion = useReducedMotion()
+  const { tier } = useQuality()
   const stats = useRef({ frames: 0, elapsed: 0 })
-  const gl = useThree((s) => s.gl)
-  const geometry = useRef<{ top: number; height: number; heroBottom: number } | null>(null)
-  useEffect(() => {
-    const canvas = gl.domElement
-    const hero = document.getElementById('hero')
-    const measure = () => {
-      const rect = canvas.getBoundingClientRect()
-      const y = window.scrollY
-      const heroBottom = hero ? hero.getBoundingClientRect().bottom + y : Infinity
-      geometry.current = { top: rect.top + y - pageTwoExit.offset, height: rect.height, heroBottom }
-    }
-    const observer = new ResizeObserver(measure)
-    observer.observe(canvas)
-    if (hero) observer.observe(hero)
-    window.addEventListener('resize', measure)
-    ScrollTrigger.addEventListener('refresh', measure)
-    measure()
-    return () => {
-      observer.disconnect()
-      window.removeEventListener('resize', measure)
-      ScrollTrigger.removeEventListener('refresh', measure)
-      gl.setScissorTest(false)
-    }
-  }, [gl])
   useFrame(({ size }, delta) => {
-    // Keep full-size projection and pixel density, but shade only rows inside
-    // the viewport. The canvas is opaque and has no postprocessing, so pixels
-    // outside this rectangle cannot contribute to the visible image.
-    // The CSS diagonal clip remains authoritative (scissor is conservative).
-    const measured = geometry.current
-    const y = window.scrollY
-    if (!reducedMotion && measured && measured.height > 0 && size.height > 0) {
-      // The top two vertices follow the CSS clip, with a conservative 6px guard.
-      // UV and fragment coordinates stay anchored to the original full-size canvas.
-      const overhang = measured.heroBottom - measured.top
-      const left = Math.max(0, Math.min(measured.height, overhang + skyWipe.shift - 6))
-      const right = Math.max(0, Math.min(measured.height, overhang + skyWipe.shift - skyWipe.lead - 6))
-      if (Number.isFinite(overhang)) skyClipTop.set(1 - 2 * left / measured.height, 1 - 2 * right / measured.height)
-      else skyClipTop.set(1, 1)
-      const ratio = size.height / measured.height
-      const rectTop = measured.top - y + pageTwoExit.offset
-      const top = Math.max(0, Math.floor(-rectTop * ratio) - 2)
-      const visibleBottom = Math.min(window.innerHeight, pageTwoExit.visibleBottom)
-      const bottom = Math.min(size.height, Math.ceil((visibleBottom - rectTop) * ratio) + 2)
-      const height = Math.max(0, bottom - top)
-      gl.setScissor(0, size.height - bottom, size.width, height)
-      gl.setScissorTest(true)
-    } else {
-      gl.setScissorTest(false)
-      skyClipTop.set(1, 1)
-    }
-    // The section begins after the hero, and the canvas includes its overhang.
-    // Read the hero only when needed for the HUD; do not change its ownership.
-    if (!measured || measured.heroBottom > y || delta > .5) {
-      stats.current.frames = stats.current.elapsed = 0
+    const sample = stats.current
+    if (window.scrollY < size.height || delta > 0.5) {
+      sample.frames = sample.elapsed = 0
       return
     }
-    const s = stats.current
-    s.frames++
-    s.elapsed += delta
-    if (s.elapsed < .5) return
-    const fps = s.frames / s.elapsed
+    sample.frames++
+    sample.elapsed += delta
+    if (sample.elapsed < 0.5) return
+    const fps = sample.frames / sample.elapsed
     const hud = document.getElementById('scene-fps')
     if (hud) {
-      hud.textContent = Math.round(fps) + ' FPS'
+      hud.textContent = `${Math.round(fps)} FPS`
       hud.removeAttribute('title')
       hud.dataset.rate = fps >= 58 ? 'good' : fps >= 45 ? 'fair' : 'low'
     }
     document.documentElement.dataset.pageFps = fps.toFixed(1)
-    s.frames = s.elapsed = 0
-  }, -2)
+    sample.frames = sample.elapsed = 0
+  })
   return (
     <>
-      <WorldBackdrop continuous sunless clipTop={skyClipTop} />
-      <GalaxyStars reducedMotion={reducedMotion} continuous skipIntro clipTop={skyClipTop} />
+      <WorldBackdrop continuous sunless />
+      <GalaxyStars reducedMotion={reducedMotion} continuous constellation={tier !== 'low'} />
       <Prewarm models={[]} />
     </>
   )
 }
 
-/** Same procedural sky as the hero, without the sun or wheel. No bloom composer
- * is needed for the sky-only chapter; the canvas pauses off-screen. */
-export function PageTwoSky() {
-  const [active, setActive] = useState(false)
+/** One viewport-sized sky behind the wheel and the blessing. */
+export function BlessingSky() {
+  const reducedMotion = useReducedMotion()
   useEffect(() => {
-    let previous = false
-    const tick = () => {
-      // The diagonal starts exactly outside the viewport; wake before the
-      // first visible pixels, and stop when returned to the hero.
-      const next = !document.hidden && window.scrollY > 0
-      if (next !== previous) {
-        previous = next
-        setActive(next)
-      }
+    const mist = document.querySelector<HTMLElement>('.blessing-journey-mist')
+    if (!mist || new URLSearchParams(window.location.search).get('mist') === '0') return
+    let elapsed = 0
+    let last = ''
+    const tick = (_time: number, delta: number) => {
+      if (heroFx.rise < 1) elapsed = 0
+      else elapsed = reducedMotion ? 720 : Math.min(720, elapsed + Math.min(delta, 50))
+      const opacity = MathUtils.smoothstep(elapsed, 0, 720).toFixed(3)
+      if (opacity !== last) mist.style.setProperty('--mist-visible', opacity)
+      last = opacity
     }
-    tick()
+    tick(0, 0)
     gsap.ticker.add(tick)
-    document.addEventListener('visibilitychange', tick)
     return () => {
       gsap.ticker.remove(tick)
-      document.removeEventListener('visibilitychange', tick)
+      mist.style.removeProperty('--mist-visible')
     }
-  }, [])
+  }, [reducedMotion])
   return (
-    <div className="page-two-sky">
-      <SceneCanvas
-        label="Sunless night galaxy"
-        camera={{ position: [0, 0, 6], fov: 35, near: 0.1, far: 50 }}
-        effects={false}
-        active={active}
-        gl={{ antialias: false }}
-      >
-        <SkyScene />
-      </SceneCanvas>
+    <div className="blessing-journey-sky" aria-hidden="true">
+      <div className="blessing-journey-sky__viewport">
+        <SceneCanvas
+          label="Night sky shared by the wedding invitation and the blessing"
+          camera={{ position: [0, 0, 6], fov: 35, near: 0.1, far: 50 }}
+          effects={false}
+          gl={{ antialias: false }}
+        >
+          <SharedGalaxy />
+        </SceneCanvas>
+      </div>
     </div>
   )
 }

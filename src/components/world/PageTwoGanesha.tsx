@@ -1,14 +1,14 @@
 import { Environment, Lightformer } from '@react-three/drei'
 import { useFrame, useThree } from '@react-three/fiber'
 import { useLayoutEffect, useMemo, useRef, type RefObject } from 'react'
-import { Group, MathUtils, Mesh, Vector3, type BufferAttribute, type BufferGeometry, type MeshLambertMaterial, type MeshStandardMaterial, type Object3D, type Points, type ShaderMaterial } from 'three'
+import { Group, MathUtils, Mesh, Vector2, Vector3, type BufferAttribute, type BufferGeometry, type MeshLambertMaterial, type MeshStandardMaterial, type Object3D, type Points, type ShaderMaterial } from 'three'
 import { ScrollTrigger } from '../../lib/gsap'
 import { pointer } from '../../lib/pointer'
 import { useReducedMotion } from '../../lib/useReducedMotion'
-import { Model } from '../Model'
+import { Model, modelMetalnessMap } from '../Model'
 import { Prewarm } from '../three/Prewarm'
 import { SceneCanvas } from '../three/SceneCanvas'
-import { ganeshaPose, ganeshaPoseGLSL, lotusGrade, makeOrnamentGlints } from './lotus/appearance'
+import { ganeshaPose, ganeshaPoseGLSL, lotusGrade, makeOrnamentGlints, ornamentSweep, ornamentSweepGLSL } from './lotus/appearance'
 import { LOTUS_H, LOTUS_PIVOT, LOTUS_R } from './lotus/layout'
 import { splitByPart } from './lotus/parts'
 import { projectCircle } from './screenShapes'
@@ -21,18 +21,18 @@ const GLINTS = 'ganesha-ornament-glints'
 const ENTRY_ANGLE = MathUtils.degToRad(-12)
 const EXIT_ANGLE = MathUtils.degToRad(28)
 const EXIT_ROTATION_RESPONSE = 16
-const PEAK_GLOW = 0.65
+const FIGURE_GLOW = 0.31
+const PETAL_GLOW = 0.30
 // Approved aura is now the default. Use aura=0 for the original scene.
 const AURA_ENABLED = typeof window === 'undefined' ||
   new URLSearchParams(window.location.search).get('aura') !== '0'
-const AURA_SETTINGS = { aura: 0, rays: 0.43, violet: 0.38, lotus: 0.27, rayCount: 48 } as const
-// Optional A/B comparison: shine=0 restores the previous rays.
+const AURA_SETTINGS = { aura: 0.22, rays: 0.36, lotus: 0.21 } as const
+// Optional comparison: shine=0 removes the warm highlight within the shafts.
 const RAY_SHINE = typeof window !== 'undefined' &&
   new URLSearchParams(window.location.search).get('shine') !== '0' ? 1 : 0
 // Approved flowing mist is enabled by default; use ?mist=0 to compare.
 const MIST_ENABLED = typeof window === 'undefined' ||
   new URLSearchParams(window.location.search).get('mist') !== '0'
-const MIST_DEFINES = MIST_ENABLED ? { FLOWING_MIST: 1 } : {}
 // Approved default: #AB6EFA tint at 26% intensity. URL preview controls
 // remain available for reversible comparisons without changing the main design.
 const mistQuery = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
@@ -48,158 +48,93 @@ const mistLevel = mistQuery?.get('mistIntensity')
 const mistPercent = mistLevel == null || mistLevel.trim() === '' ? 26 : Number(mistLevel)
 const MIST_STRENGTH = (Number.isFinite(mistPercent) ? MathUtils.clamp(mistPercent, 0, 100) : 26) / 65
 const lotusAuraGlow = { value: 0 }
+const mistWrap = { value: 0 }
+const arrivalLighting = { value: new Vector2(0, 0) }
 
 const AURA_VERTEX = /* glsl */ `
   varying vec2 vUv;
+  varying float vScreenTop;
   void main() {
     vUv = uv;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    vScreenTop = 0.5 - 0.5 * gl_Position.y / gl_Position.w;
   }
 `
 
-// One bounded billboard: soft halo, irregular polar rays and two-scale haze.
+// One bounded billboard: soft golden backlight and scattered shafts.
 // Normal alpha blending is intentional: this canvas is composited over a
 // separate galaxy canvas, so the stars remain visible through the light.
 const AURA_FRAGMENT = /* glsl */ `
   varying vec2 vUv;
-  uniform float uTime, uFade, uAura, uRays, uViolet, uLotus, uRayCount, uShine;
-  const float TAU = 6.28318530718;
-  float hash(float x) {
-    return fract(sin(x * 127.1 + 19.17) * 43758.5453);
-  }
+  varying float vScreenTop;
+  uniform float uTime, uFade, uAura, uRays, uLotus, uShine;
   float cloud(vec2 p) {
     return 0.5 + 0.5 * sin(p.x * 5.7 + sin(p.y * 4.4))
                        * cos(p.y * 6.1 - sin(p.x * 3.3));
   }
-  #ifdef FLOWING_MIST
-  uniform float uMistTime, uMistStrength, uMistTintMix;
-  uniform vec3 uMistTint;
-  // Continuous lattice noise instead of hashing every moving UV directly.
-  // This keeps the cloud coherent between frames rather than sparkling.
-  float mistHash(vec2 p) {
-    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
-    p3 += dot(p3, p3.yzx + 33.33);
-    return fract((p3.x + p3.y) * p3.z);
+  float scatteredShaft(vec2 p, vec2 direction, float width, float reach) {
+    float along = dot(p, direction);
+    float across = dot(p, vec2(-direction.y, direction.x));
+    float spread = across / (width + max(along, 0.0) * 0.17);
+    return exp(-spread * spread) * smoothstep(-0.024, 0.03, along)
+      * (1.0 - smoothstep(0.048, reach, along));
   }
-  float mistNoise(vec2 p) {
-    vec2 i = floor(p);
-    vec2 f = fract(p);
-    vec2 u = f * f * (3.0 - 2.0 * f);
-    return mix(mix(mistHash(i), mistHash(i + vec2(1.0, 0.0)), u.x),
-               mix(mistHash(i + vec2(0.0, 1.0)), mistHash(i + vec2(1.0)), u.x), u.y);
-  }
-  float mistFbm(vec2 p) {
-    float value = 0.0;
-    float amplitude = 0.5;
-    // Four octaves per field instead of five to limit fragment cost.
-    for (int i = 0; i < 4; i++) {
-      value += amplitude * mistNoise(p);
-      p = mat2(0.8, -0.6, 0.6, 0.8) * p * 2.1 + vec2(3.1, 7.2);
-      amplitude *= 0.5;
-    }
-    return value / 0.9375;
-  }
-  vec4 flowingMist(vec2 head, float edge) {
-    // Match the ray origin: model y = 0.235, rather than the plane centre.
-    // Extend the envelope beyond the ears and crown so the sculpture cannot
-    // hide the whole effect. Keep the cloud behind the existing rays.
-    float t = uMistTime * 0.15;
-    vec2 p = head / vec2(0.245, 0.165);
-    vec2 q = p * 1.65 + vec2(2.7, 4.1) + vec2(t * 0.3, t * 0.1);
-    vec2 s = p * 1.35 + vec2(6.2, 1.8) + vec2(-t * 0.2, t * 0.15);
-    float n1 = mistFbm(q);
-    float n2 = mistFbm(s + vec2(n1 * 1.4, n1 * 0.9));
-    float density = smoothstep(0.24, 0.68, n2);
-    float wisps = smoothstep(0.36, 0.73, n2) * (0.45 + 0.55 * n1);
-    // Brighter violet crests, with indigo retained in the cloud shadows.
-    vec3 color = mix(vec3(0.10, 0.07, 0.27), vec3(0.42, 0.20, 0.72), density);
-    color = mix(color, vec3(0.67, 0.43, 0.98), wisps);
-    float radius = length(p);
-    float boundary = 1.0 - smoothstep(0.62, 1.55, radius);
-    // Preserve the existing surrounding cloud volume, and add a concentrated
-    // upper-head cloud bank using the same moving noise fields. Its centre
-    // sits just below the crown tip, so visible wisps rise above the silhouette.
-    float surrounding = (0.28 + 0.72 * density) * 0.65 * boundary;
-    vec2 crown = (head - vec2(0.0, 0.055)) / vec2(0.145, 0.115);
-    float crownShape = exp(-dot(crown, crown) * 0.9)
-      * (1.0 - smoothstep(1.15, 1.85, length(crown)));
-    float crownDensity = (0.48 + 0.52 * density) * crownShape;
-    float crownAlpha = crownDensity * 0.72;
-    vec3 crownColor = mix(vec3(0.34, 0.17, 0.66), vec3(0.70, 0.45, 1.0), wisps);
-    // Composite the extra volume into the existing mist instead of adding
-    // another mesh or noise loop. The opaque statue still occludes both.
-    float extra = crownAlpha * (1.0 - surrounding);
-    float volume = surrounding + extra;
-    color = (color * surrounding + crownColor * extra) / max(volume, 0.0001);
-    // Tint only the cloud; keep the golden ray layer, original shading,
-    // density pattern and neon invocation independent of these controls.
-    float value = max(color.r, max(color.g, color.b));
-    vec3 tint = uMistTint * (0.32 + 0.68 * value);
-    color = mix(color, tint, uMistTintMix);
-    return vec4(color, clamp(volume * uMistStrength, 0.0, 1.0) * edge * uFade);
-  }
-  #endif
 
   void main() {
     // Local coordinates in the same units as the original scanned model.
     vec2 p = (vUv - 0.5) * vec2(0.90, 0.55);
     vec2 head = p - vec2(0.0, 0.085);
-    float r = length(head);
     float breathe = 0.94 + 0.06 * sin(uTime * 0.85);
     float halo = uAura * breathe * (
       0.62 * exp(-dot(head, head) / 0.0036) +
-      0.34 * exp(-dot(head, head) / 0.018)
+      0.34 * exp(-dot(head, head) / 0.021)
     );
-    // Exactly 48 angular cells, with stable per-ray width/length/intensity.
-    // No 48-iteration loop, no ray marching, no textures.
-    float angle = atan(head.y, head.x + 0.000001);
-    float rayCell = fract((angle + 3.14159265) / TAU + uTime * 0.0022) * uRayCount;
-    float id = floor(rayCell);
-    float seed = hash(id);
-    float localAngle = fract(rayCell) - 0.5;
-    float width = mix(0.10, 0.29, hash(id + 7.0));
-    float rayDistance = localAngle / width;
-    float beam = exp(-rayDistance * rayDistance);
-    float reach = mix(0.16, 0.38, hash(id + 31.0));
-    float rayFade = 1.0 - smoothstep(0.045, reach, r);
-    float flicker = 0.90 + 0.10 * sin(uTime * 0.65 + seed * TAU);
-    float rays = uRays * beam * rayFade * smoothstep(0.025, 0.075, r)
-      * mix(0.15, 0.65, seed) * flicker;
-    // Narrow champagne-white cores catch the light, with slow highlights
-    // travelling outward along each ray. Stagger phases to avoid uniform flashes.
-    float core = exp(-rayDistance * rayDistance * 7.0);
-    float phase = TAU * (r / 0.24 - uTime * 0.19 + seed);
-    float wave = 0.5 + 0.5 * cos(phase);
-    float glint = wave * wave * wave * wave;
-    float shine = uShine * rays * core * (0.62 + 0.90 * glint);
-    // Soft violet atmosphere, not a hard ring or a new background.
     vec2 q = head * 8.0;
     float mist = 0.55 * cloud(q + vec2(uTime * 0.045, 0.0))
                + 0.45 * cloud(q * 1.8 + vec2(0.0, -uTime * 0.035));
-    float violet = uViolet * (0.20 + 0.45 * mist)
-      * exp(-dot(head, head) / 0.055) * smoothstep(0.035, 0.13, r);
+    // Broad shafts start at different points behind the crown and fade through the haze.
+    float shafts = 0.64 * scatteredShaft(head - vec2(-0.021, 0.005), vec2(-0.76, 0.65), 0.015, 0.268)
+                 + 0.46 * scatteredShaft(head - vec2(0.003, 0.016), vec2(-0.17, 0.985), 0.011, 0.205)
+                 + 0.54 * scatteredShaft(head - vec2(0.029, -0.012), vec2(0.935, 0.355), 0.018, 0.285);
+    float scattering = mix(0.26, 1.0, smoothstep(0.14, 0.77, mist));
+    float rays = uRays * shafts * scattering * breathe;
+    float shine = uShine * rays * 0.32 * exp(-dot(head, head) / 0.014);
     // A broad, soft pink-gold reflection under the petal roots.
     vec2 lower = (p - vec2(0.0, -0.105)) / vec2(0.19, 0.075);
     float lotus = uLotus * 0.66 * exp(-dot(lower, lower)) * breathe;
     float edge = (1.0 - smoothstep(0.32, 0.50, abs(vUv.x - 0.5)))
                * (1.0 - smoothstep(0.32, 0.50, abs(vUv.y - 0.5)));
-    float energy = halo + rays + violet + lotus + shine;
+    float energy = halo + rays + lotus + shine;
     vec3 light = halo * vec3(1.0, 0.66, 0.30)
                + rays * vec3(1.0, 0.77, 0.42)
                + shine * vec3(1.0, 0.94, 0.76)
-               + violet * vec3(0.43, 0.25, 0.72)
                + lotus * vec3(1.0, 0.58, 0.53);
     vec3 color = light / max(energy, 0.0001);
     float alpha = (1.0 - exp(-energy * 1.45)) * edge * uFade;
-    #ifdef FLOWING_MIST
-    // Straight-alpha source-over composition: existing golden rays and halo
-    // sit in front of the mist. No new geometry, texture or WebGL render pass.
-    vec4 atmosphere = flowingMist(head, edge);
-    float backAlpha = atmosphere.a * (1.0 - alpha);
-    float combinedAlpha = alpha + backAlpha;
-    color = (color * alpha + atmosphere.rgb * backAlpha) / max(combinedAlpha, 0.0001);
-    alpha = combinedAlpha;
-    #endif
+    // The rear atmosphere must taper into the sky that overlaps the previous chapter.
+    gl_FragColor = vec4(color, alpha * smoothstep(0.0, 0.18, vScreenTop));
+  }
+`
+
+// A shallow layer in front of the lotus ties the rear atmosphere to the figure.
+const FOREGROUND_MIST_FRAGMENT = /* glsl */ `
+  varying vec2 vUv;
+  uniform float uFade, uMistTime, uMistStrength;
+  uniform vec3 uMistTint;
+
+  void main() {
+    vec2 p = vUv * 2.0 - 1.0;
+    float t = uMistTime * 0.16;
+    float low = (p.y + 0.16 + sin(p.x * 4.5 - t) * 0.22) / 0.25;
+    float high = (p.y - 0.14 + sin(p.x * 5.5 + t * 0.68 + 1.9) * 0.17) / 0.19;
+    float bank = 0.68 * exp(-low * low) + 0.32 * exp(-high * high);
+    float drift = 0.61 + 0.25 * sin(p.x * 7.0 + p.y * 3.1 - t * 1.4)
+      + 0.14 * sin(p.x * 15.0 - p.y * 4.0 + t);
+    float edge = (1.0 - smoothstep(0.55, 1.0, abs(p.x)))
+      * (1.0 - smoothstep(0.52, 1.0, abs(p.y)));
+    float sides = mix(0.52, 1.0, smoothstep(0.06, 0.62, abs(p.x)));
+    float alpha = clamp(bank * drift * edge * sides * uMistStrength * uFade * 0.94, 0.0, 0.24);
+    vec3 color = mix(vec3(0.56, 0.43, 0.74), uMistTint, 0.55);
     gl_FragColor = vec4(color, alpha);
   }
 `
@@ -217,18 +152,59 @@ function gradePetals(material: LotusMesh['material']) {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uPetalBreath = opening
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vPetalPosition;\nuniform float uPetalBreath;')
+      .replace('#include <common>', '#include <common>\nvarying vec3 vPetalPosition;\nvarying vec3 vPetalNormal;\nuniform float uPetalBreath;')
       .replace('#include <begin_vertex>', /* glsl */ `
         #include <begin_vertex>
         vPetalPosition = position;
+        vPetalNormal = normal;
         // The outermost join vertex is at radius 0.126. Flex only past the join.
         float tip = smoothstep(0.129, 0.20, length(position.xz)) * smoothstep(0.025, 0.09, position.y);
         transformed.xz += position.xz * (0.052 * tip * uPetalBreath);
         transformed.y -= 0.009 * tip * uPetalBreath;
       `)
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\nvarying vec3 vPetalPosition;\n${lotusGrade}`)
-      .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb = lotusGrade(diffuseColor.rgb, vPetalPosition);')
+      .replace('#include <common>', `#include <common>\nvarying vec3 vPetalPosition;\nvarying vec3 vPetalNormal;\n${lotusGrade}`)
+      .replace('#include <map_fragment>', /* glsl */ `
+        #include <map_fragment>
+        float radius = length(vPetalPosition.xz);
+        float exposure = radius * 0.78 + max(vPetalPosition.y, 0.0) * 0.48;
+        float openPetal = smoothstep(0.048, 0.158, exposure);
+        vec3 petalShade = mix(vec3(0.69, 0.54, 0.62), vec3(0.97, 0.92, 0.94), openPetal);
+        // Shade the inward-facing folds under the exposed petal tips.
+        vec2 radial = vPetalPosition.xz / max(radius, 0.0001);
+        float inward = max(0.0, -dot(normalize(vPetalNormal).xz, radial));
+        float folds = smoothstep(0.08, 0.7, inward) * (1.0 - smoothstep(0.105, 0.184, radius));
+        // The seated figure meets the inner bowl above the petal roots.
+        float seatRadius = length((vPetalPosition.xz - vec2(0.0, 0.012)) / vec2(0.118, 0.089));
+        float seatShadow = (1.0 - smoothstep(0.46, 1.25, seatRadius))
+          * smoothstep(0.034, 0.072, vPetalPosition.y);
+        float petalContact = clamp(max(folds * 0.64, seatShadow), 0.0, 1.0);
+        petalShade *= mix(vec3(1.0), vec3(0.60, 0.46, 0.52), petalContact);
+        // Curved radial veins run from the bowl toward the tips. Fade the fine
+        // lines when they are smaller than a pixel to keep them stable in motion.
+        float angle = atan(vPetalPosition.z, vPetalPosition.x + 0.000001);
+        float veinPhase = angle * 112.0 + 1.25 * sin(angle * 9.0 + exposure * 31.0);
+        float veinWave = cos(veinPhase);
+        float veinDetail = 1.0 - smoothstep(0.45, 1.7, fwidth(veinPhase));
+        float veins = smoothstep(0.60, 0.96, veinWave) * veinDetail;
+        float ridges = smoothstep(0.38, 0.93, -veinWave) * veinDetail;
+        float grain = sin(angle * 19.0 + exposure * 53.0);
+        float textureFade = smoothstep(0.048, 0.094, exposure)
+          * (1.0 - 0.78 * smoothstep(0.155, 0.21, exposure));
+        vec3 variation = vec3(0.065, 0.086, 0.073) * ridges
+          - vec3(0.13, 0.18, 0.15) * veins + vec3(0.019, 0.037, 0.024) * grain;
+        petalShade *= 1.0 + variation * textureFade;
+        float frontPetal = smoothstep(0.102, 0.147, vPetalPosition.z)
+          * (1.0 - smoothstep(0.020, 0.054, abs(vPetalPosition.x)))
+          * smoothstep(0.030, 0.055, vPetalPosition.y);
+        petalShade *= 1.0 - 0.16 * frontPetal;
+        diffuseColor.rgb = lotusGrade(diffuseColor.rgb, vPetalPosition) * petalShade;
+      `)
+      .replace('#include <emissivemap_fragment>', /* glsl */ `
+        #include <emissivemap_fragment>
+        totalEmissiveRadiance *= 1.0 - 0.62 * petalContact;
+        totalEmissiveRadiance *= 1.0 - 0.18 * frontPetal;
+      `)
     if (AURA_ENABLED) {
       shader.uniforms.uLotusAuraGlow = lotusAuraGlow
       shader.fragmentShader = shader.fragmentShader
@@ -243,14 +219,118 @@ function gradePetals(material: LotusMesh['material']) {
   }
 }
 
-function animateFigure(material: LotusMesh['material']) {
+function animateFigure(material: LotusMesh['material'], metalMask = modelMetalnessMap(material)) {
   material.customProgramCacheKey = () => 'page-two-ganesha-pose'
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, ganeshaPose)
+    shader.uniforms.uMistWrap = mistWrap
+    shader.uniforms.uPortraitMistTint = { value: mistTint }
+    shader.uniforms.uOrnamentMask = { value: metalMask }
+    shader.uniforms.uArrivalLight = arrivalLighting
+    shader.uniforms.uOrnamentSweep = ornamentSweep
+    const portraitVaryings = /* glsl */ `
+      varying float vSeatShade, vPortraitLight, vPortraitSheen, vOrnament, vGarment, vBowl, vSweets;
+      varying vec3 vPortraitNormal;
+      varying float vFigureHeight;
+    `
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', `#include <common>\n${ganeshaPoseGLSL}`)
+      .replace('#include <common>', `#include <common>\n${portraitVaryings}\n${ganeshaPoseGLSL}`)
       .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\nobjectNormal = ganeshaPoseNormal(objectNormal, position);')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed = ganeshaPosePoint(position);')
+      .replace('#include <begin_vertex>', /* glsl */ `
+        #include <begin_vertex>
+        transformed = ganeshaPosePoint(position);
+        vFigureHeight = position.y;
+        vSeatShade = 1.0 - smoothstep(0.08, 0.148, position.y);
+        vGarment = 1.0 - smoothstep(0.135, 0.153, position.y);
+        // Keep the broad portrait key anchored to the view during the figure's turn.
+        vec3 portraitNormal = normalize(normalMatrix * objectNormal);
+        vec3 keyDirection = normalize(vec3(-0.57, 0.38, 0.73));
+        float facingKey = dot(portraitNormal, keyDirection);
+        float keyLight = smoothstep(0.08, 0.95, facingKey);
+        vPortraitLight = keyLight * mix(0.70, 1.0, smoothstep(0.124, 0.214, position.y));
+        // Light from the halo catches the upper contours as well as the front of the crown.
+        float grazing = 1.0 - abs(portraitNormal.z);
+        float rim = smoothstep(0.30, 0.84, grazing) * smoothstep(-0.07, 0.62, facingKey);
+        float crown = smoothstep(0.180, 0.272, position.y);
+        vPortraitSheen = (rim * 0.82 + smoothstep(0.58, 0.97, facingKey) * 0.42)
+          * mix(0.08, 1.0, crown);
+        vPortraitNormal = portraitNormal;
+        float crownMetal = smoothstep(0.229, 0.254, position.y) * (1.0 - smoothstep(0.037, 0.061, abs(position.x)));
+        float axeMetal = smoothstep(0.064, 0.086, -position.x) * smoothstep(0.194, 0.221, position.y);
+        float bowlX = smoothstep(0.047, 0.054, position.x) * (1.0 - smoothstep(0.073, 0.081, position.x));
+        vBowl = bowlX * smoothstep(0.149, 0.155, position.y) * (1.0 - smoothstep(0.159, 0.162, position.y));
+        vSweets = bowlX * smoothstep(0.160, 0.163, position.y) * (1.0 - smoothstep(0.172, 0.177, position.y));
+        float jewelry = (1.0 - smoothstep(0.043, 0.065, abs(position.x)))
+          * smoothstep(0.120, 0.139, position.y) * (1.0 - smoothstep(0.158, 0.181, position.y));
+        float wrist = smoothstep(0.077, 0.091, abs(position.x)) * smoothstep(0.142, 0.156, position.y)
+          * (1.0 - smoothstep(0.169, 0.183, position.y));
+        vOrnament = max(max(crownMetal, axeMetal), max(jewelry, wrist));
+      `)
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', /* glsl */ `
+        #include <common>
+        ${portraitVaryings}
+        ${ornamentSweepGLSL}
+        uniform float uMistWrap;
+        uniform vec3 uPortraitMistTint;
+        uniform sampler2D uOrnamentMask;
+        uniform vec2 uArrivalLight;
+      `)
+      .replace('#include <map_fragment>', /* glsl */ `
+        #include <map_fragment>
+        vec3 pigment = diffuseColor.rgb;
+        float luminance = dot(pigment, vec3(0.2126, 0.7152, 0.0722));
+        // Mute high-chroma orange and gold while holding the reds in the painted details.
+        float orange = smoothstep(0.10, 0.49, pigment.r - pigment.b)
+          * smoothstep(0.035, 0.23, pigment.g - pigment.b);
+        float bakedMetal = 0.0;
+        #ifdef USE_MAP
+          bakedMetal = texture2D(uOrnamentMask, vMapUv).b;
+        #endif
+        float ornamentMetal = vOrnament * smoothstep(0.59, 0.73, bakedMetal);
+        float bowlMetal = vBowl * smoothstep(0.54, 0.63, bakedMetal);
+        float metal = max(ornamentMetal, bowlMetal) * (1.0 - vSweets);
+        pigment = mix(vec3(luminance), pigment, mix(0.96, 0.62, orange));
+        // Select the original ochre and red fabric pigments below the waist.
+        // The texture luminance carries the folds through to the new colors.
+        vec3 originalCloth = diffuseColor.rgb;
+        float dhoti = vGarment * (1.0 - smoothstep(0.034, 0.105,
+          distance(originalCloth, vec3(0.241, 0.127, 0.054))));
+        float sash = vGarment * smoothstep(0.10, 0.21, originalCloth.r)
+          * (1.0 - smoothstep(0.046, 0.11, originalCloth.g));
+        vec3 saffron = vec3(0.84, 0.55, 0.045) * clamp(luminance / 0.152, 0.42, 1.25);
+        vec3 crimson = vec3(0.58, 0.022, 0.039) * clamp(originalCloth.r / 0.27, 0.40, 1.25);
+        pigment = mix(mix(pigment, saffron, dhoti), crimson, sash * 0.82);
+        vec3 portraitShade = mix(vec3(0.63, 0.59, 0.65), vec3(1.06, 1.035, 1.0), vPortraitLight);
+        float upperFigure = smoothstep(0.147, 0.210, vFigureHeight);
+        float revealLight = mix(uArrivalLight.y, uArrivalLight.x, upperFigure);
+        diffuseColor.rgb = pigment * portraitShade * (1.0 - 0.28 * vSeatShade) * mix(0.46, 1.0, revealLight);
+      `)
+      .replace('#include <roughnessmap_fragment>', /* glsl */ `
+        #include <roughnessmap_fragment>
+        roughnessFactor = mix(0.72 - 0.20 * vPortraitSheen, 0.98, roughnessFactor);
+        roughnessFactor = mix(roughnessFactor, 0.25, metal * 0.90);
+        roughnessFactor = mix(roughnessFactor, 0.96, vSweets);
+      `)
+      .replace('#include <metalnessmap_fragment>', /* glsl */ `
+        #include <metalnessmap_fragment>
+        metalnessFactor = mix(metalnessFactor * 0.26, 0.78, metal * 0.88);
+      `)
+      .replace('#include <emissivemap_fragment>', /* glsl */ `
+        #include <emissivemap_fragment>
+        totalEmissiveRadiance *= mix(0.67, 1.02, vPortraitLight) * (1.0 - 0.42 * vSeatShade);
+        totalEmissiveRadiance += emissive * (0.82 * vPortraitSheen);
+        // Two small reflections also give the Lambert tier a sharp metallic highlight.
+        vec3 reflectionNormal = normalize(vPortraitNormal);
+        float keyReflection = pow(max(0.0, dot(reflectionNormal, normalize(vec3(-0.26, 0.33, 0.91)))), 20.0);
+        float sideReflection = pow(max(0.0, dot(reflectionNormal, normalize(vec3(0.43, 0.21, 0.88)))), 34.0);
+        float lightSweep = 1.0 + 0.60 * arrivalGlint(vFigureHeight);
+        totalEmissiveRadiance += emissive * metal * (2.7 * keyReflection + 1.6 * sideReflection) * lightSweep;
+        totalEmissiveRadiance *= 1.0 - 0.55 * vSweets;
+        float silhouette = smoothstep(0.30, 0.82, 1.0 - abs(reflectionNormal.z));
+        float mistSide = smoothstep(0.07, 0.79, reflectionNormal.x);
+        totalEmissiveRadiance += uPortraitMistTint * (0.26 * uMistWrap * silhouette * mistSide);
+      `)
   }
 }
 
@@ -272,10 +352,11 @@ function prepareLotus(root: Object3D) {
   const spark = petals.geometry.getAttribute('_spark') as BufferAttribute | undefined
   const figure = new Mesh(figureGeometry, petals.material.clone())
   figure.name = GANESHA
-  figure.material.emissive.set('#ffd29b')
+  figure.material.emissive.set('#f1dec8')
   figure.material.emissiveMap = figure.material.map
   figure.material.emissiveIntensity = 0
-  animateFigure(figure.material)
+  if ('metalness' in figure.material) figure.material.metalness = 0.38
+  animateFigure(figure.material, modelMetalnessMap(petals.material))
   if (spark) {
     const glints = makeOrnamentGlints(petals.geometry, spark)
     glints.name = GLINTS
@@ -311,13 +392,16 @@ function LotusFigure({ frame, invocation }: {
   const reducedMotion = useReducedMotion()
   const model = useRef<Group>(null)
   const auraMaterial = useRef<ShaderMaterial>(null)
+  const foregroundMist = useRef<ShaderMaterial>(null)
   const auraUniforms = useMemo(() => ({
-    uTime: { value: 0 }, uFade: { value: 0 }, uMistTime: { value: 0 },
-    uMistStrength: { value: MIST_STRENGTH }, uMistTint: { value: mistTint },
-    uMistTintMix: { value: 1 },
+    uTime: { value: 0 }, uFade: { value: 0 },
     uAura: { value: AURA_SETTINGS.aura }, uRays: { value: AURA_SETTINGS.rays },
-    uViolet: { value: AURA_SETTINGS.violet }, uLotus: { value: AURA_SETTINGS.lotus },
-    uRayCount: { value: AURA_SETTINGS.rayCount }, uShine: { value: RAY_SHINE },
+    uLotus: { value: AURA_SETTINGS.lotus },
+    uShine: { value: RAY_SHINE },
+  }), [])
+  const foregroundUniforms = useMemo(() => ({
+    uFade: { value: 0 }, uMistTime: { value: 0 },
+    uMistStrength: { value: MIST_STRENGTH }, uMistTint: { value: mistTint },
   }), [])
   const entry = useRef<ScrollTrigger | null>(null)
   const exit = useRef<ScrollTrigger | null>(null)
@@ -423,38 +507,58 @@ function LotusFigure({ frame, invocation }: {
     ganeshaPose.uFigureStretch.value.set(bodyWidth, 1 + inhale * (0.024 + 0.062 * hover.current))
     const opening = petalBreath.get(petals.material)
     if (opening) opening.value = inhale * hover.current
-    // One shared envelope for the divine rays and the bilingual invocation.
-    // DOM text uses the exact shader fade; no second trigger or timed animation.
-    const fade = MathUtils.smoothstep(progress, 0.35, 0.96)
-      * (1 - MathUtils.smoothstep(departureProgress, 0, 0.90))
+    // Stagger the portrait, the metal catchlights, and the invocation on the paced scroll.
+    const faceLight = MathUtils.smootherstep(progress, 0.31, 0.55)
+    const bodyLight = MathUtils.smootherstep(progress, 0.46, 0.82)
+    arrivalLighting.value.set(faceLight, bodyLight)
+    const glintTravel = MathUtils.smoothstep(progress, 0.54, 0.78)
+    const arrivalShine = MathUtils.smoothstep(progress, 0.51, 0.57)
+      * (1 - MathUtils.smoothstep(progress, 0.75, 0.81))
+    ornamentSweep.value.set(glintTravel, arrivalShine)
+    const exitFade = 1 - MathUtils.smoothstep(departureProgress, 0, 0.90)
+    const fade = MathUtils.smoothstep(progress, 0.27, 0.85) * exitFade
     if (invocation.current) {
-      const opacity = fade.toFixed(3)
-      if (invocation.current.style.opacity !== opacity) {
-        invocation.current.style.opacity = opacity
-        invocation.current.style.transform = reducedMotion
-          ? 'none'
-          : `translate3d(0, ${(12 * (1 - fade)).toFixed(2)}px, 0)`
+      const style = invocation.current.style
+      const opacity = (MathUtils.smoothstep(progress, 0.59, 0.73) * exitFade).toFixed(3)
+      if (style.opacity !== opacity) style.opacity = opacity
+      if (!reducedMotion) {
+        const fragments = MathUtils.smootherstep(progress, 0.63, 0.81).toFixed(3)
+        const fill = MathUtils.smootherstep(progress, 0.76, 0.91).toFixed(3)
+        const romanization = MathUtils.smootherstep(progress, 0.84, 0.95).toFixed(3)
+        if (style.getPropertyValue('--mantra-fragments') !== fragments) {
+          style.setProperty('--mantra-fragments', fragments)
+        }
+        if (style.getPropertyValue('--mantra-fill') !== fill) style.setProperty('--mantra-fill', fill)
+        if (style.getPropertyValue('--mantra-romanization') !== romanization) {
+          style.setProperty('--mantra-romanization', romanization)
+        }
       }
     }
     if (AURA_ENABLED && auraMaterial.current) {
       auraMaterial.current.uniforms.uFade.value = fade
+      auraMaterial.current.uniforms.uAura.value = AURA_SETTINGS.aura * (1 + 0.24 * arrivalShine)
       auraMaterial.current.uniforms.uTime.value = reducedMotion ? 0 : idleTime.current
       if (MIST_ENABLED) {
         if (!reducedMotion && fade > 0) {
           mistTime.current += dt
           invalidate()
         }
-        auraMaterial.current.uniforms.uMistTime.value = reducedMotion ? 0 : mistTime.current
+        if (foregroundMist.current) {
+          foregroundMist.current.uniforms.uFade.value = fade
+          foregroundMist.current.uniforms.uMistTime.value = reducedMotion ? 0 : mistTime.current
+        }
+        mistWrap.value = MIST_STRENGTH * fade
       }
       lotusAuraGlow.value = AURA_SETTINGS.lotus * fade * (0.96 + 0.04 * inhale)
     }
-    const glow = MathUtils.smootherstep(progress, 0.32, 1)
-    petals.material.emissiveIntensity = glow * PEAK_GLOW
-    figure.material.emissiveIntensity = glow * PEAK_GLOW * 0.6
+    petals.material.emissiveIntensity = bodyLight * PETAL_GLOW
+    figure.material.emissiveIntensity = MathUtils.lerp(faceLight, bodyLight, 0.62) * FIGURE_GLOW
     const glints = figure.getObjectByName(GLINTS) as Points<BufferGeometry, ShaderMaterial> | undefined
     if (glints) {
-      glints.material.uniforms.uGlow.value = glow
+      glints.material.uniforms.uGlow.value = MathUtils.smoothstep(progress, 0.49, 0.63)
       glints.material.uniforms.uDpr.value = viewport.dpr
+      glints.material.uniforms.uTime.value = reducedMotion ? 0 : idleTime.current
+      glints.material.uniforms.uOrnamentSweep.value.copy(ornamentSweep.value)
     }
     if (!painted.current && frame.current) {
       frame.current.dataset.modelPainted = ''
@@ -466,6 +570,8 @@ function LotusFigure({ frame, invocation }: {
   // perspective at its depth so its projected centre tracks the statue.
   const auraDepth = 0.25 * scale
   const auraPerspective = (6 + auraDepth) / 6
+  const mistDepth = 0.225 * scale
+  const mistPerspective = (6 - mistDepth) / 6
 
   return (
     <>
@@ -478,9 +584,25 @@ function LotusFigure({ frame, invocation }: {
           <shaderMaterial
             ref={auraMaterial}
             uniforms={auraUniforms}
-            defines={MIST_DEFINES}
             vertexShader={AURA_VERTEX}
             fragmentShader={AURA_FRAGMENT}
+            transparent
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </mesh>
+      )}
+      {AURA_ENABLED && MIST_ENABLED && MIST_STRENGTH > 0 && (
+        <mesh
+          position={[0, (0.052 - LOTUS_PIVOT.y) * scale * mistPerspective, mistDepth]}
+          renderOrder={2}
+        >
+          <planeGeometry args={[0.66 * scale * mistPerspective, 0.129 * scale * mistPerspective]} />
+          <shaderMaterial
+            ref={foregroundMist}
+            uniforms={foregroundUniforms}
+            vertexShader={AURA_VERTEX}
+            fragmentShader={FOREGROUND_MIST_FRAGMENT}
             transparent
             depthWrite={false}
             toneMapped={false}
@@ -518,42 +640,17 @@ export function PageTwoGanesha() {
       </SceneCanvas>
       <footer
         ref={invocation}
+        className="page-two-invocation"
         aria-label="Ganesha invocation"
-        style={{
-          position: 'absolute',
-          insetInline: 0,
-          bottom: 'max(4.5dvh, calc(env(safe-area-inset-bottom, 0px) + 12px))',
-          zIndex: 1,
-          textAlign: 'center',
-          paddingInline: '16px',
-          opacity: 0,
-          transform: 'translate3d(0, 12px, 0)',
-          // Static multi-radius neon shadows travel with the existing opacity
-          // reveal: no animated blur, additional canvas or WebGL render pass.
-          color: '#fff5ce',
-          pointerEvents: 'none',
-        }}
       >
-        <span lang="or" style={{
-          display: 'block',
-          fontFamily: 'var(--font-odia)',
-          fontSize: 'clamp(1.25rem, min(3.1vw, 4.1dvh), 2.2rem)',
-          fontWeight: 400,
-          lineHeight: 1.5,
-          color: '#fff9dc',
-          textShadow: '0 0 2px #fffce8, 0 0 5px #fff1aa, 0 0 12px #ffc43d, 0 0 26px rgba(255, 153, 16, 0.88), 0 0 48px rgba(255, 103, 22, 0.52), 0 0 68px rgba(185, 76, 255, 0.30)',
-        }}>ଶ୍ରୀ ଗଣେଶାୟ ନମଃ</span>
-        <span lang="en" style={{
-          display: 'block',
-          fontFamily: 'var(--font-display)',
-          fontSize: 'clamp(0.8rem, min(1.4vw, 2.2dvh), 1.2rem)',
-          fontWeight: 500,
-          lineHeight: 1.4,
-          letterSpacing: '0.16em',
-          color: '#ffe7b0',
-          textShadow: '0 0 2px #fff3d0, 0 0 6px #ffd36e, 0 0 15px rgba(255, 162, 44, 0.95), 0 0 30px rgba(255, 105, 59, 0.55), 0 0 45px rgba(193, 94, 255, 0.32)',
-          marginTop: '0.25em',
-        }}>Sri Ganeshaya Namah</span>
+        <div>
+          <h2 lang="or" className="page-two-invocation__title">
+            ଶ୍ରୀ ଗଣେଶାୟ ନମଃ
+          </h2>
+          <p lang="en" className="page-two-invocation__romanization">
+            Sri Ganeshaya Namah
+          </p>
+        </div>
       </footer>
     </div>
   )

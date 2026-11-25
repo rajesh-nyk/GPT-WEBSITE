@@ -6,11 +6,10 @@ type Props = {
   from: string
   className?: string
   children?: ReactNode
-  geometry?: { shift: number; lead: number }
   holdOutgoing?: { offset: number; visibleBottom: number }
 }
 
-export function DiagonalWipe({ from, className = '', children, geometry, holdOutgoing }: Props) {
+export function DiagonalWipe({ from, className = '', children, holdOutgoing }: Props) {
   const layer = useRef<HTMLDivElement>(null)
   const rim = useRef<HTMLDivElement>(null)
   const reducedMotion = useReducedMotion()
@@ -24,7 +23,7 @@ export function DiagonalWipe({ from, className = '', children, geometry, holdOut
     // Extend only the outgoing sky under the diagonal. Ganesha and the
     // full page-two stage keep their original size and natural document motion.
     const outgoingSky = holdOutgoing
-      ? source.querySelector<HTMLElement>('.page-two-stage > .page-angle')
+      ? source.closest('.blessing-journey')?.querySelector<HTMLElement>('.blessing-journey-sky')
       : null
     let lead = 0
     let clearance = 0
@@ -32,10 +31,6 @@ export function DiagonalWipe({ from, className = '', children, geometry, holdOut
       const p = Math.max(0, Math.min(1, progress))
       // The right corner enters at the viewport bottom. On arrival the left corner clears the top.
       const shift = Number((lead * (1 - p) - clearance * p).toFixed(2))
-      if (geometry) {
-        geometry.shift = shift
-        geometry.lead = Number(lead.toFixed(2))
-      }
       if (holdOutgoing) {
         const distance = Math.max(1, end - start)
         // Zero compensation from the very first pixel of scroll.
@@ -84,7 +79,6 @@ export function DiagonalWipe({ from, className = '', children, geometry, holdOut
     return () => {
       trigger.kill()
       outgoingSky?.style.removeProperty('bottom')
-      if (geometry) geometry.shift = geometry.lead = 0
       if (holdOutgoing) {
         holdOutgoing.offset = 0
         holdOutgoing.visibleBottom = Infinity
@@ -97,7 +91,7 @@ export function DiagonalWipe({ from, className = '', children, geometry, holdOut
       edge.style.removeProperty('--rim-width')
       edge.style.removeProperty('--rim-energy')
     }
-  }, [from, geometry, holdOutgoing, reducedMotion])
+  }, [from, holdOutgoing, reducedMotion])
 
   return (
     <div ref={layer} className={`page-angle ${className}`} aria-hidden="true">

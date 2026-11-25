@@ -136,6 +136,13 @@ function sharpenTextures(root: Object3D, anisotropy: number) {
 // One converted copy per source scene (shared by all instances), materials converted once.
 const basicScenes = new WeakMap<Object3D, Object3D>()
 const basicMats = new WeakMap<Material, Material>()
+const originalMetalnessMaps = new WeakMap<Material, Texture>()
+
+/** Custom shaders can use the original metal mask even after Lambert conversion. */
+export function modelMetalnessMap(material: Material) {
+  const standard = material as MeshStandardMaterial
+  return standard.isMeshStandardMaterial ? standard.metalnessMap : originalMetalnessMaps.get(material) ?? null
+}
 
 function toBasicMaterials(scene: Object3D) {
   let basic = basicScenes.get(scene)
@@ -174,6 +181,7 @@ function toLambert(source: Material): Material {
     vertexColors: src.vertexColors,
     flatShading: src.flatShading,
   })
+  if (src.metalnessMap) originalMetalnessMaps.set(lambert, src.metalnessMap)
   basicMats.set(source, lambert)
   return lambert
 }

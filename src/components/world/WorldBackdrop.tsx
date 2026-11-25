@@ -165,7 +165,11 @@ const fragment = /* glsl */ `
     vec2 sg = floor(vUv * vec2(uAspect, 1.0) * 220.0);
     float star = step(0.9965, hash(sg)) * smoothstep(0.35, 0.9, vUv.y) * (1.0 - rise * 0.85);
     if (star > 0.0) sky += vec3(0.9, 0.8, 0.65) * star * 0.18 * (0.6 + 0.4 * sin(uHeroTime * 1.3 + hash(sg + 1.0) * 30.0));
+    #ifdef SUNLIGHT_ONLY
+    col = vec3(0.0);
+    #else
     col = mix(col, sky, heroW);
+    #endif
     // Red glow and deep tone are identically black in the current palette.
     #ifndef CONTINUOUS_SKY
     col += uRedGlow * exp(-rh * rh * 5.5) * mix(0.45, 1.0, uBreath) * heroW * rise;
@@ -214,7 +218,12 @@ const fragment = /* glsl */ `
     g += (hash(gl_FragCoord.xy) - 0.5) / 255.0;
     col = pow(max(g, 0.0), vec3(2.2));
 
+    #ifdef SUNLIGHT_ONLY
+    float alpha = clamp(max(max(col.r, col.g), col.b) * 1.6, 0.0, 1.0);
+    gl_FragColor = vec4(col / max(alpha, 0.0001), alpha);
+    #else
     gl_FragColor = vec4(col, 1.0);
+    #endif
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
   }
@@ -223,16 +232,17 @@ const fragment = /* glsl */ `
 /** Hover is fully on when the pointer is there; the 5% itself is HOVER_GAIN in the shader. */
 const RAY_HOVER = 1
 
-export function WorldBackdrop({ continuous = false, sunless = false, clipTop }: { continuous?: boolean; sunless?: boolean; clipTop?: Vector2 } = {}) {
+export function WorldBackdrop({ continuous = false, sunless = false, sunlightOnly = false, clipTop }: { continuous?: boolean; sunless?: boolean; sunlightOnly?: boolean; clipTop?: Vector2 } = {}) {
   const size = useThree((s) => s.size)
   const material = useMemo(
     () =>
       new ShaderMaterial({
         vertexShader: vertex,
         fragmentShader: fragment,
-        defines: { ...(continuous ? { CONTINUOUS_SKY: 1 } : {}), ...(sunless && continuous ? { SUNLESS_SKY: 1 } : {}) },
+        defines: { ...(continuous ? { CONTINUOUS_SKY: 1 } : {}), ...(sunless && continuous ? { SUNLESS_SKY: 1 } : {}), ...(sunlightOnly ? { SUNLIGHT_ONLY: 1 } : {}) },
+        transparent: sunlightOnly,
         depthWrite: false,
-        depthTest: false,
+        depthTest: sunlightOnly,
         uniforms: {
           uClipTop: { value: clipTop ?? new Vector2(1, 1) },
           uAspect: { value: 1 },
@@ -274,7 +284,7 @@ export function WorldBackdrop({ continuous = false, sunless = false, clipTop }: 
           uRayHover: { value: 0 },
         },
       }),
-    [sunless, clipTop, continuous],
+    [sunless, sunlightOnly, clipTop, continuous],
   )
   material.uniforms.uAspect.value = size.width / size.height
 
