@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { Hero } from './components/hero/Hero'
 import { WorldCanvas } from './components/world/WorldCanvas'
 import { SlicedPageTwo } from './components/SlicedPageTwo'
+import { CloudJourney } from './components/world/CloudJourney'
 
 export default function App() {
   const velocityOutput = useRef<HTMLOutputElement>(null)
@@ -47,6 +48,7 @@ export default function App() {
         </div>
         <SlicedPageTwo />
       </main>
+      <CloudJourney />
       <div className="scene-fps" aria-label="Performance testing">
         <output id="scene-fps" aria-label="WebGL frames per second" aria-live="off">-- FPS</output>
         <span className="scene-fps__divider" aria-hidden="true" />
