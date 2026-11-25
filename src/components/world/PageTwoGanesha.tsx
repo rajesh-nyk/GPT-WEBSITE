@@ -749,6 +749,9 @@ export function PageTwoGanesha() {
       {!MANTRA_RISE && <footer
         ref={invocation}
         className="page-two-invocation"
+        style={typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('mantra-glow') === '1'
+          ? { textShadow: 'none', filter: 'drop-shadow(0 0 2px rgb(255 218 145 / .72)) drop-shadow(0 0 4px rgb(255 183 74 / .32))' }
+          : undefined}
         aria-label="Ganesha invocation"
       >
         <div style={GLASS}>
