@@ -26,6 +26,9 @@ const PEAK_GLOW = 0.65
 const AURA_EXPERIMENT = typeof window !== 'undefined' &&
   new URLSearchParams(window.location.search).get('aura') === '1'
 const AURA_SETTINGS = { aura: 0.57, rays: 0.43, violet: 0.38, lotus: 0.27, rayCount: 48 } as const
+// Optional A/B comparison: aura=1&shine=0 restores the previous rays.
+const RAY_SHINE = typeof window !== 'undefined' &&
+  new URLSearchParams(window.location.search).get('shine') !== '0' ? 1 : 0
 const lotusAuraGlow = { value: 0 }
 
 const AURA_VERTEX = /* glsl */ `
@@ -41,7 +44,7 @@ const AURA_VERTEX = /* glsl */ `
 // separate galaxy canvas, so the stars remain visible through the light.
 const AURA_FRAGMENT = /* glsl */ `
   varying vec2 vUv;
-  uniform float uTime, uFade, uAura, uRays, uViolet, uLotus, uRayCount;
+  uniform float uTime, uFade, uAura, uRays, uViolet, uLotus, uRayCount, uShine;
   const float TAU = 6.28318530718;
   float hash(float x) {
     return fract(sin(x * 127.1 + 19.17) * 43758.5453);
@@ -75,6 +78,13 @@ const AURA_FRAGMENT = /* glsl */ `
     float flicker = 0.90 + 0.10 * sin(uTime * 0.65 + seed * TAU);
     float rays = uRays * beam * rayFade * smoothstep(0.025, 0.075, r)
       * mix(0.15, 0.65, seed) * flicker;
+    // Narrow champagne-white cores catch the light, with slow highlights
+    // travelling outward along each ray. Stagger phases to avoid uniform flashes.
+    float core = exp(-rayDistance * rayDistance * 7.0);
+    float phase = TAU * (r / 0.24 - uTime * 0.19 + seed);
+    float wave = 0.5 + 0.5 * cos(phase);
+    float glint = wave * wave * wave * wave;
+    float shine = uShine * rays * core * (0.62 + 0.90 * glint);
     // Soft violet atmosphere, not a hard ring or a new background.
     vec2 q = head * 8.0;
     float mist = 0.55 * cloud(q + vec2(uTime * 0.045, 0.0))
@@ -86,9 +96,10 @@ const AURA_FRAGMENT = /* glsl */ `
     float lotus = uLotus * 0.66 * exp(-dot(lower, lower)) * breathe;
     float edge = (1.0 - smoothstep(0.32, 0.50, abs(vUv.x - 0.5)))
                * (1.0 - smoothstep(0.32, 0.50, abs(vUv.y - 0.5)));
-    float energy = halo + rays + violet + lotus;
+    float energy = halo + rays + violet + lotus + shine;
     vec3 light = halo * vec3(1.0, 0.66, 0.30)
                + rays * vec3(1.0, 0.77, 0.42)
+               + shine * vec3(1.0, 0.94, 0.76)
                + violet * vec3(0.43, 0.25, 0.72)
                + lotus * vec3(1.0, 0.58, 0.53);
     vec3 color = light / max(energy, 0.0001);
@@ -205,7 +216,7 @@ function LotusFigure({ frame }: { frame: RefObject<HTMLDivElement | null> }) {
     uTime: { value: 0 }, uFade: { value: 0 },
     uAura: { value: AURA_SETTINGS.aura }, uRays: { value: AURA_SETTINGS.rays },
     uViolet: { value: AURA_SETTINGS.violet }, uLotus: { value: AURA_SETTINGS.lotus },
-    uRayCount: { value: AURA_SETTINGS.rayCount },
+    uRayCount: { value: AURA_SETTINGS.rayCount }, uShine: { value: RAY_SHINE },
   }), [])
   const entry = useRef<ScrollTrigger | null>(null)
   const exit = useRef<ScrollTrigger | null>(null)
