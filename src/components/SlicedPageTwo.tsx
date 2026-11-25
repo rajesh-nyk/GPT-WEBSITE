@@ -27,8 +27,12 @@ export function SlicedPageTwo() {
       // At entry the right corner touches the viewport bottom. At arrival
       // the left corner clears the top, including the optical rim.
       const shift = lead * (1 - p) - clearance * p
-      panel.style.setProperty('--edge-shift', shift.toFixed(2) + 'px')
-      rim.current?.style.setProperty('--rim-energy', String(Math.min(1, envelope * 1.8)))
+      const offset = shift.toFixed(2) + 'px'
+      panel.style.clipPath = `polygon(0 calc(var(--overhang) + ${offset}), 100% calc(var(--overhang) + ${offset} - var(--lead)), 100% 100%, 0 100%)`
+      if (rim.current) {
+        rim.current.style.transform = `translateY(${offset}) rotate(var(--rim-angle))`
+        rim.current.style.setProperty('--rim-energy', String(Math.min(1, envelope * 1.8)))
+      }
     }
     const refresh = (trigger: ScrollTrigger) => {
       amplitude = Math.min(window.innerHeight * .23, window.innerWidth * .16, Math.max(0, Math.min(window.innerHeight * .28, window.innerWidth * .20) - 42))
@@ -51,7 +55,8 @@ export function SlicedPageTwo() {
     return () => {
       trigger.kill()
       panel.style.removeProperty('--lead')
-      panel.style.removeProperty('--edge-shift')
+      panel.style.removeProperty('clip-path')
+      rim.current?.style.removeProperty('transform')
       rim.current?.style.removeProperty('--rim-angle')
       rim.current?.style.removeProperty('--rim-width')
       rim.current?.style.removeProperty('--rim-energy')
