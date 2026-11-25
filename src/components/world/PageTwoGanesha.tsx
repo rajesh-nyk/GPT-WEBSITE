@@ -803,7 +803,7 @@ export function PageTwoGanesha() {
           <h2 lang="or" className="page-two-invocation__title" style={GLASS_TEXT}>
             ଶ୍ରୀ ଗଣେଶାୟ ନମଃ
           </h2>
-          <p lang="en" className="page-two-invocation__romanization" style={{ ...GLASS_TEXT, textAlign: 'center' }}>
+          <p lang="en" className="page-two-invocation__romanization" style={{ ...GLASS_TEXT, textAlign: 'center', marginTop: '0.2em' }}>
             Sri Ganeshaya Namah
           </p>
           </div>
