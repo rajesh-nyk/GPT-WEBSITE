@@ -546,10 +546,11 @@ function LotusFigure({ frame, invocation }: {
     }
     const inhale = (0.5 - 0.5 * Math.cos(idleTime.current * 2 * Math.PI / 5.6)) * idle
     const sway = Math.sin(idleTime.current * 2 * Math.PI / 9) * SWAY_ANGLE * idle
-    const bodyWidth = 1 + inhale * 0.008
+    // Gentle chest expansion, anchored above the seated mesh joins.
+    const bodyWidth = 1 + inhale * 0.024
     ganeshaPose.uFigureTurn.value = turn
     ganeshaPose.uFigureSway.value = sway
-    ganeshaPose.uFigureStretch.value.set(bodyWidth, 1 + inhale * 0.024)
+    ganeshaPose.uFigureStretch.value.set(bodyWidth, 1 + inhale * 0.034)
     const opening = petalBreath.get(petals.material)
     // Hover removed (his request, 25 Nov 2026): the petals stay at rest.
     if (opening) opening.value = 0
