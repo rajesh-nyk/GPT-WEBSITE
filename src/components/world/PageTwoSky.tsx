@@ -6,6 +6,7 @@ import { useReducedMotion } from '../../lib/useReducedMotion'
 import { SceneCanvas } from '../three/SceneCanvas'
 import { WorldBackdrop } from './WorldBackdrop'
 import { GalaxyStars } from './GalaxyStars'
+import { CloudJourney } from './CloudJourney'
 
 // CSS wipe publishes its exact local geometry; no layout read is needed per frame.
 export const skyWipe = { shift: 0, lead: 0 }
@@ -89,6 +90,7 @@ function SkyScene() {
     <>
       <WorldBackdrop continuous sunless clipTop={skyClipTop} />
       <GalaxyStars reducedMotion={reducedMotion} continuous skipIntro clipTop={skyClipTop} />
+      <CloudJourney />
     </>
   )
 }
