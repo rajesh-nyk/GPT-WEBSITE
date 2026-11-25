@@ -29,14 +29,14 @@ const AURA_SETTINGS = { aura: 0, rays: 0.43, violet: 0.38, lotus: 0.27, rayCount
 // Optional A/B comparison: shine=0 restores the previous rays.
 const RAY_SHINE = typeof window !== 'undefined' &&
   new URLSearchParams(window.location.search).get('shine') !== '0' ? 1 : 0
-// Experimental atmosphere: disabled by default; use ?mist=1 to compare.
-const MIST_EXPERIMENT = typeof window !== 'undefined' &&
-  new URLSearchParams(window.location.search).get('mist') === '1'
-const MIST_DEFINES = MIST_EXPERIMENT ? { FLOWING_MIST: 1 } : {}
-// Preview controls apply only to the optional atmosphere. Absent parameters
-// reproduce the previously approved experimental palette and density exactly.
+// Approved flowing mist is enabled by default; use ?mist=0 to compare.
+const MIST_ENABLED = typeof window === 'undefined' ||
+  new URLSearchParams(window.location.search).get('mist') !== '0'
+const MIST_DEFINES = MIST_ENABLED ? { FLOWING_MIST: 1 } : {}
+// Approved default: #AB6EFA tint at 26% intensity. URL preview controls
+// remain available for reversible comparisons without changing the main design.
 const mistQuery = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
-const mistHex = (mistQuery?.get('mistColor') ?? '').replace(/^#/, '')
+const mistHex = (mistQuery?.get('mistColor') ?? 'AB6EFA').replace(/^#/, '')
 const customMistColor = /^[0-9a-f]{6}$/i.test(mistHex)
 const mistColorNumber = customMistColor ? Number.parseInt(mistHex, 16) : 0xab6efa
 const mistTint = new Vector3(
@@ -45,8 +45,8 @@ const mistTint = new Vector3(
   (mistColorNumber & 255) / 255,
 )
 const mistLevel = mistQuery?.get('mistIntensity')
-const mistPercent = mistLevel == null || mistLevel.trim() === '' ? 65 : Number(mistLevel)
-const MIST_STRENGTH = Number.isFinite(mistPercent) ? MathUtils.clamp(mistPercent, 0, 100) / 65 : 1
+const mistPercent = mistLevel == null || mistLevel.trim() === '' ? 26 : Number(mistLevel)
+const MIST_STRENGTH = (Number.isFinite(mistPercent) ? MathUtils.clamp(mistPercent, 0, 100) : 26) / 65
 const lotusAuraGlow = { value: 0 }
 
 const AURA_VERTEX = /* glsl */ `
@@ -314,7 +314,7 @@ function LotusFigure({ frame, invocation }: {
   const auraUniforms = useMemo(() => ({
     uTime: { value: 0 }, uFade: { value: 0 }, uMistTime: { value: 0 },
     uMistStrength: { value: MIST_STRENGTH }, uMistTint: { value: mistTint },
-    uMistTintMix: { value: customMistColor ? 1 : 0 },
+    uMistTintMix: { value: 1 },
     uAura: { value: AURA_SETTINGS.aura }, uRays: { value: AURA_SETTINGS.rays },
     uViolet: { value: AURA_SETTINGS.violet }, uLotus: { value: AURA_SETTINGS.lotus },
     uRayCount: { value: AURA_SETTINGS.rayCount }, uShine: { value: RAY_SHINE },
@@ -439,7 +439,7 @@ function LotusFigure({ frame, invocation }: {
     if (AURA_ENABLED && auraMaterial.current) {
       auraMaterial.current.uniforms.uFade.value = fade
       auraMaterial.current.uniforms.uTime.value = reducedMotion ? 0 : idleTime.current
-      if (MIST_EXPERIMENT) {
+      if (MIST_ENABLED) {
         if (!reducedMotion && fade > 0) {
           mistTime.current += dt
           invalidate()
