@@ -9,7 +9,6 @@ import { heroFx } from '../hero/fx'
 import { QualityEffects } from '../three/QualityEffects'
 import { JourneyDirector } from './journey'
 import { GalaxyStars } from './GalaxyStars'
-import { CloudJourney } from './CloudJourney'
 import { screenShapes } from './screenShapes'
 import { TravelingWheel } from './TravelingWheel'
 import { WorldBackdrop } from './WorldBackdrop'
@@ -118,7 +117,6 @@ export function PageOneWorld() {
       <JourneyDirector reducedMotion={reducedMotion} directScroll />
       <WorldBackdrop continuous />
       <GalaxyStars reducedMotion={reducedMotion} constellation={tier !== 'low'} continuous />
-      <CloudJourney />
       <WorldLighting heroOnly />
       <TravelingWheel pointer={pointer} reducedMotion={reducedMotion} anchorY={anchorY} pageTransition />
       <QualityEffects bloomRef={bloom} bloomIntensity={0.45} bloomThreshold={0.86} vignette={0.4} />
