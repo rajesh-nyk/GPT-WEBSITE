@@ -454,37 +454,44 @@ function prepareLotus(root: Object3D) {
 // Sample the real outer petal mesh so pollen begins on the moving flower.
 function makePetalPollen(petals: LotusMesh) {
   const source = petals.geometry.getAttribute('position')
+  const normals = petals.geometry.getAttribute('normal')
   const sectors = 24
-  const tips: ({ x: number; y: number; z: number; score: number } | undefined)[] = Array(sectors)
+  const tips: ({ x: number; y: number; z: number; nx: number; ny: number; nz: number; score: number } | undefined)[] = Array(sectors)
   for (let i = 0; i < source.count; i++) {
     const x = source.getX(i), y = source.getY(i), z = source.getZ(i)
     const radius = Math.hypot(x, z)
     if (radius < 0.145 || y < 0.018) continue
     const angle = Math.atan2(z, x)
     const bin = Math.min(sectors - 1, Math.floor((angle + Math.PI) / (2 * Math.PI) * sectors))
-    const score = radius + 0.42 * y
-    if (!tips[bin] || score > tips[bin]!.score) tips[bin] = { x, y, z, score }
+    const nx = normals?.getX(i) ?? 0, ny = normals?.getY(i) ?? 1, nz = normals?.getZ(i) ?? 0
+    // Prefer exposed upper petal ridges instead of underside vertices.
+    const score = radius + 0.64 * y + 0.018 * Math.max(0, ny)
+    if (!tips[bin] || score > tips[bin]!.score) tips[bin] = { x, y, z, nx, ny, nz, score }
   }
   const positions: number[] = []
+  const surfaceNormals: number[] = []
   const seeds: number[] = []
   for (let i = 0; i < sectors; i++) {
     const tip = tips[i]
     if (!tip) continue
     for (let j = 0; j < 2; j++) {
       positions.push(tip.x, tip.y, tip.z)
+      surfaceNormals.push(tip.nx, tip.ny, tip.nz)
       seeds.push(((i * 73 + j * 37 + 19) % 113) / 113, ((i * 41 + j * 59 + 7) % 101) / 101)
     }
   }
   const geometry = new BufferGeometry()
   geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3))
   geometry.setAttribute('aSeed', new BufferAttribute(new Float32Array(seeds), 2))
+  geometry.setAttribute('aSurfaceNormal', new BufferAttribute(new Float32Array(surfaceNormals), 3))
   const material = new ShaderMaterial({
     transparent: true, depthWrite: false, depthTest: true,
     blending: AdditiveBlending, toneMapped: false,
-    uniforms: { uPhase: { value: 0 }, uStrength: { value: 0 }, uDpr: { value: 1 } },
+    uniforms: { uPhase: { value: 0 }, uBloom: { value: 0 }, uStrength: { value: 0 }, uDpr: { value: 1 } },
     vertexShader: /* glsl */ `
       attribute vec2 aSeed;
-      uniform float uPhase, uStrength, uDpr;
+      attribute vec3 aSurfaceNormal;
+      uniform float uPhase, uBloom, uStrength, uDpr;
       varying float vAlpha, vTint;
       void main() {
         float radius = length(position.xz);
@@ -493,24 +500,28 @@ function makePetalPollen(petals: LotusMesh) {
         // Release only on the opening half of the same 5.6-second bloom cycle.
         float birth = 0.55 + aSeed.x * 1.65 - stagger * 5.6 / 6.2831853;
         float life = 1.35 + aSeed.y * 1.05;
-        float age = mod(uPhase - birth + 5.6, 5.6);
+        // A short visible, surface-attached glow precedes the release.
+        float age = mod(uPhase - birth + 0.24 + 5.6, 5.6) - 0.24;
         float t = clamp(age / life, 0.0, 1.0);
         float birthCycle = 0.5 - 0.5 * cos(birth * 6.2831853 / 5.6 + stagger);
-        float bloom = smoothstep(0.0, 1.0, birthCycle) * uStrength;
+        float currentCycle = 0.5 - 0.5 * cos(uPhase * 6.2831853 / 5.6 + stagger);
+        float bloom = mix(smoothstep(0.0, 1.0, currentCycle), smoothstep(0.0, 1.0, birthCycle), smoothstep(0.0, 0.12, t)) * uBloom;
         float flex = smoothstep(0.129, 0.20, radius) * mix(0.75, 1.0, smoothstep(0.025, 0.09, position.y));
         vec3 origin = position;
         origin.xz *= 1.0 + 0.10 * flex * bloom;
         origin.y -= 0.015 * flex * bloom;
         vec2 radial = position.xz / max(radius, 0.0001);
         vec2 tangent = vec2(-radial.y, radial.x);
-        vec3 p = origin;
-        p.xz += radial * (0.025 + 0.045 * aSeed.y) * t;
-        p.xz += tangent * (sin(t * 3.14159 + aSeed.x * 6.28318) - sin(aSeed.x * 6.28318)) * 0.012 * t;
-        p.y += (0.055 + 0.065 * aSeed.x) * t;
-        vAlpha = smoothstep(0.0, 0.14, t) * (1.0 - smoothstep(0.35, 1.0, t)) * uStrength;
+        // Start just above the true mesh surface, then peel away along its normal.
+        vec3 normal = normalize(vec3(aSurfaceNormal.x, max(0.35, aSurfaceNormal.y), aSurfaceNormal.z));
+        vec3 p = origin + normal * (0.0018 + 0.013 * t);
+        p.xz += radial * (0.016 + 0.035 * aSeed.y) * t * t;
+        p.xz += tangent * (sin(t * 3.14159 + aSeed.x * 6.28318) - sin(aSeed.x * 6.28318)) * 0.010 * t * t;
+        p.y += (0.042 + 0.052 * aSeed.x) * t;
+        vAlpha = smoothstep(-0.24, -0.035, age) * (1.0 - smoothstep(0.38, 1.0, t)) * uStrength;
         vTint = aSeed.y;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
-        gl_PointSize = (2.8 + 3.0 * aSeed.x) * min(uDpr, 2.0) * (1.0 - 0.28 * t);
+        gl_PointSize = (4.2 + 3.0 * aSeed.x) * min(uDpr, 2.0) * (1.0 - 0.42 * t);
       }`,
     fragmentShader: /* glsl */ `
       varying float vAlpha, vTint;
@@ -694,6 +705,7 @@ function LotusFigure({ frame, invocation }: {
     if (pollen.current) {
       const uniforms = pollen.current.material.uniforms
       uniforms.uPhase.value = idleTime.current % 5.6
+      uniforms.uBloom.value = opening?.value.x ?? 0
       uniforms.uStrength.value = reducedMotion ? 0 : (opening?.value.x ?? 0) * fade * condense.value
       uniforms.uDpr.value = viewport.dpr
     }
