@@ -44,6 +44,7 @@ export default function App() {
         <Hero nextId="page-2" />
         <section
           id="page-2"
+          data-scroll-scene=""
           aria-label="Page 2"
           className="relative z-10 min-h-dvh w-full text-gold-light"
         />

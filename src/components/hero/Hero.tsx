@@ -35,6 +35,7 @@ export function Hero({ nextId }: { nextId?: string }) {
     <section
       ref={section}
       id="hero"
+      data-scroll-scene=""
       aria-labelledby="hero-title"
       className="hero relative z-10 flex h-svh min-h-[34rem] flex-col items-center overflow-hidden"
       style={heroLayoutVars}

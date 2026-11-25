@@ -33,12 +33,45 @@ export function LenisProvider({ children, paced = false }: { children: ReactNode
   useEffect(() => {
     if (reducedMotion) return
 
-    // Pacing applies to real page position, not just to the animation. Fast
-    // gestures queue a destination, while the GSAP clock moves at a fixed cap.
+    // Virtual chapter navigation: input selects a scene, then a critically
+    // damped spring drives the real document position through Lenis.
+    // Existing ScrollTriggers and 3D transforms therefore share one clock.
     let position = window.scrollY
     let goal = position
     let velocity = 0
     let lastTime = 0
+    let gestureTotal = 0
+    let gestureDirection = 0
+    let gestureConsumed = false
+    let lastGestureAt = -Infinity
+    let stops: number[] = [0]
+    let chapter = 0
+
+    const refreshStops = () => {
+      const limit = instance.limit
+      const scrollY = window.scrollY
+      const points = Array.from(document.querySelectorAll<HTMLElement>('[data-scroll-scene]'))
+        .map(el => Math.round(Math.max(0, Math.min(limit, el.getBoundingClientRect().top + scrollY))))
+      stops = [...new Set([0, ...points, limit])].sort((a, b) => a - b)
+      chapter = Math.max(0, Math.min(stops.length - 1, chapter))
+    }
+    const nearest = (y: number) => stops.reduce((best, point, i) =>
+      Math.abs(point - y) < Math.abs(stops[best] - y) ? i : best, 0)
+    const go = (index: number) => {
+      chapter = Math.max(0, Math.min(stops.length - 1, index))
+      goal = stops[chapter]
+    }
+    const stepChapter = (direction: number) => {
+      refreshStops()
+      // Use the destination while in motion, not whichever section is currently
+      // closest: a new opposite gesture can always reverse the same transition.
+      go(nearest(goal) + direction)
+    }
+    const resetGesture = () => {
+      gestureTotal = 0
+      gestureDirection = 0
+      gestureConsumed = false
+    }
     const instance = new Lenis({
       autoRaf: false,
       lerp: 0.1, // inertia: lower = floatier. 0.1 is responsive on touch and trackpad.
@@ -51,10 +84,26 @@ export function LenisProvider({ children, paced = false }: { children: ReactNode
       virtualScroll: (data) => {
         if (paced) {
           if (data.event.type === 'wheel' && (data.event as WheelEvent).ctrlKey) return true
+          if (data.event.type === 'touchstart') { resetGesture(); return false }
+          if (data.event.type === 'touchend') { resetGesture(); return false }
           if (Math.abs(data.deltaX) > Math.abs(data.deltaY)) return true
           if (data.event.cancelable) data.event.preventDefault()
-          if (!instance.isStopped && data.event.type !== 'touchend') {
-            goal = Math.max(0, Math.min(instance.limit, goal + data.deltaY))
+          if (instance.isStopped || !document.documentElement.hasAttribute('data-site-ready')) return false
+
+          const now = performance.now()
+          const direction = Math.sign(data.deltaY)
+          if (!direction) return false
+          // Ignore the inertial tail of one trackpad gesture. A fresh gesture
+          // or a deliberate opposite gesture can choose another chapter.
+          if (now - lastGestureAt > 170 || direction !== gestureDirection) resetGesture()
+          lastGestureAt = now
+          gestureDirection = direction
+          if (!gestureConsumed) {
+            gestureTotal += Math.abs(data.deltaY)
+            if (gestureTotal >= (data.event.type === 'wheel' ? 42 : 34)) {
+              stepChapter(direction)
+              gestureConsumed = true
+            }
           }
           return false
         }
@@ -71,29 +120,42 @@ export function LenisProvider({ children, paced = false }: { children: ReactNode
       if (instance.isStopped || !document.documentElement.hasAttribute('data-site-ready')) {
         position = goal = window.scrollY
         velocity = 0
+        resetGesture()
         return
       }
       const limit = instance.limit
       goal = Math.max(0, Math.min(limit, goal))
-      // The only source of motion: about 3.6 seconds at the cap for a full hero exit.
-      // Input speed cannot change the maximum rate, in either direction.
-      const span = document.getElementById('hero')?.offsetHeight || window.innerHeight
-      const maxSpeed = span / 3.6
-      const accel = maxSpeed * 3
       const gap = goal - position
-      if (Math.abs(gap) < 0.5 && Math.abs(velocity) < 2) {
-        if (Math.abs(window.scrollY - goal) > 2) goal = window.scrollY
-        position = goal
+      if (Math.abs(gap) < 0.35 && Math.abs(velocity) < 3) {
+        // Finish on the exact chapter stop, not one pixel before it.
+        if (position !== goal || Math.abs(window.scrollY - goal) > 1) {
+          position = goal
+          instance.scrollTo(goal, { immediate: true, force: true })
+        }
         velocity = 0
         return
       }
-      const desired = Math.sign(gap) * Math.min(maxSpeed, Math.sqrt(2 * accel * Math.abs(gap)))
-      velocity += Math.max(-accel * dt, Math.min(accel * dt, desired - velocity))
-      const step = velocity * dt
+
+      // Analytic critically damped spring: stable across refresh rates, no
+      // overshoot on arrival, and velocity carries through a reversal.
+      const omega = 5.0
+      const displacement = position - goal
+      const b = velocity + omega * displacement
+      const decay = Math.exp(-omega * dt)
+      const next = goal + (displacement + b * dt) * decay
+      const nextVelocity = (velocity - omega * b * dt) * decay
+      const span = Math.max(1, window.innerHeight)
+      const maxSpeed = span / 1.75
+      const rawStep = next - position
+      const step = Math.max(-maxSpeed * dt, Math.min(maxSpeed * dt, rawStep))
       if (Math.sign(step) === Math.sign(gap) && Math.abs(step) >= Math.abs(gap)) {
         position = goal
         velocity = 0
-      } else position = Math.max(0, Math.min(limit, position + step))
+      } else {
+        position = Math.max(0, Math.min(limit, position + step))
+        velocity = step === rawStep ? nextVelocity : step / Math.max(dt, 0.0001)
+        if (position === 0 || position === limit) velocity = 0
+      }
       instance.scrollTo(position, { immediate: true, force: true })
     } // gsap time is in seconds
     // Prioritised: Lenis moves the scroll FIRST in every frame, before any other ticker
@@ -116,7 +178,10 @@ export function LenisProvider({ children, paced = false }: { children: ReactNode
         target.setAttribute('tabindex', '-1')
       }
       target.focus({ preventScroll: true })
-      if (paced) goal = Math.max(0, Math.min(instance.limit, target.getBoundingClientRect().top + window.scrollY))
+      if (paced) {
+        refreshStops()
+        go(nearest(target.getBoundingClientRect().top + window.scrollY))
+      }
       else {
         scrollHold.bypass = true
         instance.scrollTo(target)
@@ -127,16 +192,28 @@ export function LenisProvider({ children, paced = false }: { children: ReactNode
     const onKey = (event: KeyboardEvent) => {
       if (!paced || instance.isStopped || event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return
       if (event.target instanceof Element && event.target.closest('input,textarea,select,button,[contenteditable="true"]')) return
-      const h = window.innerHeight
-      const delta = event.key === 'ArrowDown' ? 55 : event.key === 'ArrowUp' ? -55
-        : event.key === 'PageDown' ? h : event.key === 'PageUp' ? -h
-        : event.key === ' ' ? (event.shiftKey ? -h : h)
-        : event.key === 'End' ? instance.limit : event.key === 'Home' ? -instance.limit : 0
-      if (!delta) return
+      if (event.repeat) return
+      const direction = event.key === 'ArrowDown' || event.key === 'PageDown' ? 1
+        : event.key === 'ArrowUp' || event.key === 'PageUp' ? -1
+        : event.key === ' ' ? (event.shiftKey ? -1 : 1) : 0
+      if (!direction && event.key !== 'Home' && event.key !== 'End') return
       event.preventDefault()
-      goal = Math.max(0, Math.min(instance.limit, goal + delta))
+      if (direction) stepChapter(direction)
+      else {
+        refreshStops()
+        go(event.key === 'Home' ? 0 : stops.length - 1)
+      }
+    }
+    const onResize = () => {
+      if (!paced) return
+      instance.resize()
+      refreshStops()
+      go(chapter)
     }
     if (paced) {
+      refreshStops()
+      chapter = nearest(position)
+      window.addEventListener('resize', onResize)
       document.documentElement.classList.add('cinematic-scroll')
       window.addEventListener('keydown', onKey)
     }
@@ -145,6 +222,7 @@ export function LenisProvider({ children, paced = false }: { children: ReactNode
       document.removeEventListener('click', onAnchorClick)
       document.documentElement.classList.remove('cinematic-scroll')
       window.removeEventListener('keydown', onKey)
+      window.removeEventListener('resize', onResize)
       gsap.ticker.remove(tick)
       gsap.ticker.lagSmoothing(500, 33) // GSAP default
       instance.destroy()
