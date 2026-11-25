@@ -1,10 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
+import { Vector2 } from 'three'
 import { gsap, ScrollTrigger } from '../../lib/gsap'
 import { useReducedMotion } from '../../lib/useReducedMotion'
 import { SceneCanvas } from '../three/SceneCanvas'
 import { WorldBackdrop } from './WorldBackdrop'
 import { GalaxyStars } from './GalaxyStars'
+
+// CSS wipe publishes its exact local geometry; no layout read is needed per frame.
+export const skyWipe = { shift: 0, lead: 0 }
+const skyClipTop = new Vector2(1, 1)
 
 function SkyScene() {
   const reducedMotion = useReducedMotion()
@@ -40,6 +45,13 @@ function SkyScene() {
     const measured = geometry.current
     const y = window.scrollY
     if (!reducedMotion && measured && measured.height > 0 && size.height > 0) {
+      // The top two vertices follow the CSS clip, with a conservative 6px guard.
+      // UV and fragment coordinates stay anchored to the original full-size canvas.
+      const overhang = measured.heroBottom - measured.top
+      const left = Math.max(0, Math.min(measured.height, overhang + skyWipe.shift - 6))
+      const right = Math.max(0, Math.min(measured.height, overhang + skyWipe.shift - skyWipe.lead - 6))
+      if (Number.isFinite(overhang)) skyClipTop.set(1 - 2 * left / measured.height, 1 - 2 * right / measured.height)
+      else skyClipTop.set(1, 1)
       const ratio = size.height / measured.height
       const rectTop = measured.top - y
       const top = Math.max(0, Math.floor(-rectTop * ratio) - 2)
@@ -49,11 +61,14 @@ function SkyScene() {
         gl.setScissor(0, size.height - bottom, size.width, height)
         gl.setScissorTest(true)
       } else gl.setScissorTest(false)
-    } else gl.setScissorTest(false)
+    } else {
+      gl.setScissorTest(false)
+      skyClipTop.set(1, 1)
+    }
     // The section begins after the hero, and the canvas includes its overhang.
     // Read the hero only when needed for the HUD; do not change its ownership.
     if (!measured || measured.heroBottom > y || delta > .5) {
-      stats.current = { frames: 0, elapsed: 0 }
+      stats.current.frames = stats.current.elapsed = 0
       return
     }
     const s = stats.current
@@ -69,11 +84,11 @@ function SkyScene() {
     }
     document.documentElement.dataset.pageFps = fps.toFixed(1)
     s.frames = s.elapsed = 0
-  })
+  }, -2)
   return (
     <>
-      <WorldBackdrop continuous sunless />
-      <GalaxyStars reducedMotion={reducedMotion} continuous skipIntro />
+      <WorldBackdrop continuous sunless clipTop={skyClipTop} />
+      <GalaxyStars reducedMotion={reducedMotion} continuous skipIntro clipTop={skyClipTop} />
     </>
   )
 }
