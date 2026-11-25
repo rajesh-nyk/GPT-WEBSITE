@@ -138,8 +138,12 @@ const fragment = /* glsl */ `
     vec2 pg = (vUv - uGaneshaCenter) * vec2(uAspect, 0.8);
     float rg = length(pg);
 
+    #ifdef CONTINUOUS_SKY
+    float heroW = 1.0;
+    #else
     float heroW = 1.0 - smoothstep(0.08, 1.0, uT);
     float deepW = smoothstep(0.15, 0.9, uT) * (1.0 - smoothstep(1.6, 2.5, uT));
+    #endif
 
     vec3 col = uBase;
     // Hero sky: night at the zenith, warming to ember at a low horizon as the sun rises.
@@ -160,9 +164,13 @@ const fragment = /* glsl */ `
     // The last stars, fading as the sun climbs.
     vec2 sg = floor(vUv * vec2(uAspect, 1.0) * 220.0);
     float star = step(0.9965, hash(sg)) * smoothstep(0.35, 0.9, vUv.y) * (1.0 - rise * 0.85);
-    sky += vec3(0.9, 0.8, 0.65) * star * 0.18 * (0.6 + 0.4 * sin(uHeroTime * 1.3 + hash(sg + 1.0) * 30.0));
+    if (star > 0.0) sky += vec3(0.9, 0.8, 0.65) * star * 0.18 * (0.6 + 0.4 * sin(uHeroTime * 1.3 + hash(sg + 1.0) * 30.0));
     col = mix(col, sky, heroW);
+    // Red glow and deep tone are identically black in the current palette.
+    #ifndef CONTINUOUS_SKY
     col += uRedGlow * exp(-rh * rh * 5.5) * mix(0.45, 1.0, uBreath) * heroW * rise;
+    #endif
+    #ifndef SUNLESS_SKY
     col += uGold * exp(-rh * rh * 26.0) * mix(0.025, 0.05, uBreath) * heroW * rise;
     // Sun flare behind the wheel.
     if (uSun > 0.001) {
@@ -181,6 +189,8 @@ const fragment = /* glsl */ `
       col += sun * pulse * uSun * smoothstep(0.0, 0.35, rise);
     }
 
+    #endif
+    #ifndef CONTINUOUS_SKY
     // The calmer, deeper tone the red settles into between the two.
     col += uDeep * exp(-rg * rg * 2.0) * deepW;
     // Ganesha: warm halo behind the figure, breathing very slowly.
@@ -199,6 +209,7 @@ const fragment = /* glsl */ `
       col += pow(clamp(rays, 0.0, 1.0), vec3(2.2)) * uRays;
     }
 
+    #endif
     vec3 g = pow(max(col, 0.0), vec3(1.0 / 2.2));
     g += (hash(gl_FragCoord.xy) - 0.5) / 255.0;
     col = pow(max(g, 0.0), vec3(2.2));
@@ -219,6 +230,7 @@ export function WorldBackdrop({ continuous = false, sunless = false, clipTop }: 
       new ShaderMaterial({
         vertexShader: vertex,
         fragmentShader: fragment,
+        defines: { ...(continuous ? { CONTINUOUS_SKY: 1 } : {}), ...(sunless && continuous ? { SUNLESS_SKY: 1 } : {}) },
         depthWrite: false,
         depthTest: false,
         uniforms: {
@@ -262,7 +274,7 @@ export function WorldBackdrop({ continuous = false, sunless = false, clipTop }: 
           uRayHover: { value: 0 },
         },
       }),
-    [sunless, clipTop],
+    [sunless, clipTop, continuous],
   )
   material.uniforms.uAspect.value = size.width / size.height
 
