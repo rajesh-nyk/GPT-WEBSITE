@@ -18,6 +18,18 @@ export function growth(progress: number, index: number, count: number): number {
   return MathUtils.smootherstep(progress, start, start + span * EACH)
 }
 
+/** Scroll-scrubbed atmospheric handoff; footer wisps linger while the distant
+ * blessing clouds begin to form. Both envelopes retain their original endpoints. */
+export function footerCloudDeparture(progress: number, index: number, handoff = true): number {
+  const stagger = index * 0.06
+  return 1 - MathUtils.smoothstep(progress, 0.02 + stagger, (handoff ? 0.58 : 0.4) + stagger)
+}
+
+export function backCloudArrival(progress: number, handoff = true): number {
+  const p = MathUtils.clamp(progress, 0, 1)
+  return handoff ? MathUtils.clamp(p + 0.12 * Math.sin(Math.PI * p), 0, 1) : p
+}
+
 const PEAK = 2.4
 
 /** Light a cloud gives him: grows with the cloud, fades with the page, falls off with distance. */
