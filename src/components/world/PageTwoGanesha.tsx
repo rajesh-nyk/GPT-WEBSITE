@@ -32,26 +32,6 @@ const AURA_ENABLED = typeof window === 'undefined' ||
 // and rises up from below the bottom edge instead of a 12px nudge.
 const MANTRA_RISE = typeof window !== 'undefined' &&
   new URLSearchParams(window.location.search).has('mantra-rise')
-// Preview ?mantra-rise: each mantra line sits on a frosted-glass plate.
-const GLASS = MANTRA_RISE ? {
-  width: '100%',
-  padding: '3dvh 0',
-  borderRadius: 0,
-  background: 'linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01))',
-  borderBlock: '0.25px solid rgba(255, 255, 255, 0.2)',
-  WebkitBackdropFilter: 'blur(6px)',
-  backdropFilter: 'blur(6px)',
-} as const : {}
-// Preview ?mantra-rise: letters filled with see-through glass (a faint white sheen,
-// brighter at the top, plus a thin light edge) instead of solid colour.
-const GLASS_TEXT = MANTRA_RISE ? {
-  color: 'transparent',
-  backgroundImage: 'linear-gradient(180deg, rgba(255,255,255,0.42) 0%, rgba(255,255,255,0.14) 55%, rgba(255,255,255,0.08) 100%)',
-  WebkitBackgroundClip: 'text',
-  backgroundClip: 'text',
-  WebkitTextStroke: '1px rgba(255,255,255,0.55)',
-  textShadow: 'none',
-} as const : {}
 const AURA_SETTINGS = { aura: 0.22, rays: 0.36, lotus: 0.21 } as const
 // Optional comparison: shine=0 removes the warm highlight within the shafts.
 const RAY_SHINE = typeof window !== 'undefined' &&
@@ -594,56 +574,24 @@ function LotusFigure({ frame, invocation }: {
       if (condense.value !== target) invalidate()
     } else condense.value = 1
     if (invocation.current) {
-      const spreadFade = MathUtils.smoothstep(progress, 0.35, 0.96) * exitFade
-      const titleFade = MathUtils.smoothstep(progress, 0.59, 0.73) * exitFade
-      const opacity = (MANTRA_RISE ? spreadFade : titleFade).toFixed(3)
-      const frameMorphEnabled = MANTRA_BORDER && !MANTRA_RISE
-      const footerOpacity = MANTRA_RISE || frameMorphEnabled ? '1' : opacity
-      if (frameMorphEnabled) {
-        const el = invocation.current
-        if (el.style.getPropertyValue('--mantra-text-opacity') !== opacity) {
-          el.style.setProperty('--mantra-text-opacity', opacity)
-        }
-        const reveal = MathUtils.smootherstep(progress, 0.58, 0.94)
-          * (1 - MathUtils.smootherstep(departureProgress, 0.03, 0.88))
-        const morph = reducedMotion ? (titleFade > 0.5 ? 1 : 0) : reveal
-        const key = morph.toFixed(3)
-        if (el.style.getPropertyValue('--mantra-frame-morph') !== key) {
-          el.style.setProperty('--mantra-frame-morph', key)
-          el.style.setProperty('--mantra-frame-visibility', morph > 0.002 ? 'visible' : 'hidden')
-          el.style.setProperty('--mantra-flow-play', morph > 0.25 && !reducedMotion ? 'running' : 'paused')
-          el.style.setProperty('--mantra-flow-opacity', MathUtils.smoothstep(morph, 0.25, 0.7).toFixed(3))
-          const shape = mantraFramePath(morph)
-          el.querySelectorAll<SVGPathElement>('[data-mantra-frame-shape]').forEach(node => node.setAttribute('d', shape))
-          el.querySelector<SVGGElement>('[data-mantra-frame-ornaments]')?.setAttribute('transform',
-            `translate(170 60) scale(${0.08 + 0.92 * morph} ${0.03 + 0.97 * morph}) translate(-170 -60)`)
-        }
-      }
-      if (invocation.current.style.opacity !== footerOpacity || (MANTRA_RISE && invocation.current.style.getPropertyValue('--mantra-spread') !== opacity)) {
-        if (MANTRA_RISE) invocation.current.style.setProperty('--mantra-spread', opacity)
-        invocation.current.style.opacity = footerOpacity
-        if (MANTRA_RISE) {
-          // Each word rises out of its own line in turn; a light sweep crosses the letters.
-          const el = invocation.current
+      const el = invocation.current
+      if (MANTRA_RISE) {
+        const spreadFade = MathUtils.smoothstep(progress, 0.35, 0.96) * exitFade
+        const key = spreadFade.toFixed(3)
+        if (el.style.getPropertyValue('--mantra-spread') !== key) {
+          el.style.opacity = '1'
+          el.style.setProperty('--mantra-spread', key)
           ;[0, 1, 2].forEach((i) => {
             const k = MathUtils.smoothstep(spreadFade, i * 0.16, i * 0.16 + 0.6)
             el.style.setProperty(`--r${i}`, (1 - k).toFixed(3))
           })
           el.style.setProperty('--sw', (1 - MathUtils.smoothstep(spreadFade, 0.25, 1)).toFixed(3))
         }
-      }
-      if (!MANTRA_RISE && !reducedMotion) {
-        const fragments = MathUtils.smootherstep(progress, 0.63, 0.81).toFixed(3)
-        const fill = MathUtils.smootherstep(progress, 0.76, 0.91).toFixed(3)
-        const romanization = MathUtils.smootherstep(progress, 0.84, 0.95).toFixed(3)
-        const style = invocation.current.style
-        if (style.getPropertyValue('--mantra-fragments') !== fragments) {
-          style.setProperty('--mantra-fragments', fragments)
-        }
-        if (style.getPropertyValue('--mantra-fill') !== fill) style.setProperty('--mantra-fill', fill)
-        if (style.getPropertyValue('--mantra-romanization') !== romanization) {
-          style.setProperty('--mantra-romanization', romanization)
-        }
+      } else {
+        // Wait for the actual figure condensation as well as scroll arrival.
+        const ready = reducedMotion || (progress >= 0.99 && condense.value >= 0.995 && departureProgress < 0.035)
+        const visible = ready ? 'true' : 'false'
+        if (el.dataset.revealed !== visible) el.dataset.revealed = visible
       }
     }
     if (AURA_ENABLED && auraMaterial.current) {
@@ -742,91 +690,22 @@ function LotusFigure({ frame, invocation }: {
   )
 }
 
-const MANTRA_BORDER = typeof window !== 'undefined' &&
-  new URLSearchParams(window.location.search).get('mantra-border') !== '0'
-const MANTRA_GLOW = typeof window !== 'undefined' &&
-  new URLSearchParams(window.location.search).get('mantra-glow') !== '0'
-const mantraGlowStyle = {
-  textShadow: 'none',
-  filter: 'drop-shadow(0 0 2px rgb(255 218 145 / .72)) drop-shadow(0 0 4px rgb(255 183 74 / .32))',
-} as const
-
-// Morph the actual contour from a compact rounded ribbon into the finished frame.
-function mantraFramePath(t: number) {
-  const sx = 0.08 + 0.92 * t
-  const sy = 0.03 + 0.97 * t
-  const pt = (x: number, y: number) => `${(170 + (x - 170) * sx).toFixed(3)} ${(60 + (y - 60) * sy).toFixed(3)}`
-  return `M${pt(7,60)}C${pt(7,22)} ${pt(31,13)} ${pt(64,13)}L${pt(135,13)}Q${pt(157,13)} ${pt(170,13-9*t)}Q${pt(183,13)} ${pt(205,13)}L${pt(276,13)}C${pt(309,13)} ${pt(333,22)} ${pt(333,60)}C${pt(333,98)} ${pt(309,107)} ${pt(276,107)}L${pt(205,107)}Q${pt(183,107)} ${pt(170,107+9*t)}Q${pt(157,107)} ${pt(135,107)}L${pt(64,107)}C${pt(31,107)} ${pt(7,98)} ${pt(7,60)}Z`
-}
-
-function MantraRoyalFrame() {
+function MantraTicker({ language, phrase }: { language: 'or' | 'en'; phrase: string }) {
   return (
-    <svg aria-hidden="true" viewBox="0 0 340 120" preserveAspectRatio="none"
-      style={{
-        position: 'absolute',
-        inset: '-31px clamp(-38px, -5vw, -20px)',
-        width: 'calc(100% + clamp(40px, 10vw, 76px))',
-        height: 'calc(100% + 62px)',
-        overflow: 'visible',
-        pointerEvents: 'none',
-        zIndex: 0,
-        visibility: 'var(--mantra-frame-visibility, hidden)' as 'hidden',
-      }}>
-      <style>{`
-        @keyframes mantra-edge-flow {
-          from { stroke-dashoffset: var(--flow-start, 0); }
-          to { stroke-dashoffset: var(--flow-end, -100); }
-        }
-        .mantra-flow-streak {
-          animation: mantra-edge-flow 5.5s linear infinite;
-          animation-play-state: var(--mantra-flow-play, paused);
-        }
-        .mantra-flow-mid { --flow-start: -5; --flow-end: -105; }
-        .mantra-flow-core { --flow-start: -9; --flow-end: -109; }
-        @media (prefers-reduced-motion: reduce) {
-          .mantra-flow-streak { animation: none; visibility: hidden; }
-        }
-      `}</style>
-      <defs>
-        <linearGradient id="mantra-dream-edge" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#AB6EFA" stopOpacity="0.85" />
-          <stop offset="28%" stopColor="#E9D5FF" stopOpacity="1" />
-          <stop offset="52%" stopColor="#D7B4FF" stopOpacity="0.9" />
-          <stop offset="78%" stopColor="#F4E9FF" stopOpacity="1" />
-          <stop offset="100%" stopColor="#AB6EFA" stopOpacity="0.85" />
-        </linearGradient>
-        <linearGradient id="mantra-clear-glass" x1="12%" y1="0%" x2="88%" y2="100%">
-          <stop offset="0%" stopColor="#F8F3FF" stopOpacity=".17" />
-          <stop offset="25%" stopColor="#EFE4FF" stopOpacity=".045" />
-          <stop offset="55%" stopColor="#FFFFFF" stopOpacity=".018" />
-          <stop offset="82%" stopColor="#D4BAFF" stopOpacity=".045" />
-          <stop offset="100%" stopColor="#F8F3FF" stopOpacity=".12" />
-        </linearGradient>
-      </defs>
-      <path data-mantra-frame-shape="" d={mantraFramePath(0)} fill="url(#mantra-clear-glass)" />
-      <g style={{ filter: 'drop-shadow(0 0 2px rgb(244 233 255 / 1)) drop-shadow(0 0 4px rgb(205 161 255 / .85)) drop-shadow(0 0 7px rgb(171 110 250 / .55))' }}>
-        <path data-mantra-frame-shape="" d={mantraFramePath(0)} fill="none" stroke="url(#mantra-dream-edge)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
-        <g fill="none" strokeLinecap="round" style={{ opacity: 'var(--mantra-flow-opacity, 0)' }}>
-          <path data-mantra-frame-shape="" className="mantra-flow-streak" d={mantraFramePath(0)} pathLength={100}
-            stroke="#AB6EFA" strokeOpacity={0.56} strokeWidth={3.2} strokeDasharray="24 76" vectorEffect="non-scaling-stroke" />
-          <path data-mantra-frame-shape="" className="mantra-flow-streak mantra-flow-mid" d={mantraFramePath(0)} pathLength={100}
-            stroke="#D7B4FF" strokeOpacity={0.9} strokeWidth={2.3} strokeDasharray="14 86" vectorEffect="non-scaling-stroke" />
-          <path data-mantra-frame-shape="" className="mantra-flow-streak mantra-flow-core" d={mantraFramePath(0)} pathLength={100}
-            stroke="#FFF5FF" strokeWidth={1.8} strokeDasharray="6 94" vectorEffect="non-scaling-stroke" />
-        </g>
-        <g data-mantra-frame-ornaments="" transform="translate(170 60) scale(.08 .03) translate(-170 -60)">
-      <g fill="none" stroke="url(#mantra-dream-edge)" strokeLinecap="round" strokeLinejoin="round">
-        <path vectorEffect="non-scaling-stroke" strokeWidth="0.8" opacity="0.72" d="M3 42C12 18 34 8 76 8M264 8C306 8 328 18 337 42M337 78C328 102 306 112 264 112M76 112C34 112 12 102 3 78" />
-      </g>
-      <g fill="#F4E9FF" opacity="0.95">
-        <path d="M170 0Q171 3 175 4Q171 5 170 8Q169 5 165 4Q169 3 170 0Z" />
-        <path d="M170 112Q171 115 175 116Q171 117 170 120Q169 117 165 116Q169 115 170 112Z" />
-        <path d="M7 54Q8 59 13 60Q8 61 7 66Q6 61 1 60Q6 59 7 54Z" />
-        <path d="M333 54Q334 59 339 60Q334 61 333 66Q332 61 327 60Q332 59 333 54Z" />
-      </g>
-        </g>
-      </g>
-    </svg>
+    <div className={`mantra-ticker mantra-ticker--${language}`} lang={language}>
+      <span className="sr-only">{phrase}</span>
+      <div className="mantra-ticker__track" aria-hidden="true">
+        {[0, 1].map(group => (
+          <div className="mantra-ticker__group" key={group}>
+            {[0, 1, 2, 3].map(i => (
+              <span className="mantra-ticker__item" key={i}>
+                {phrase}<span className="mantra-ticker__separator">✧</span>
+              </span>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -857,24 +736,40 @@ export function PageTwoGanesha() {
           </span></div>
         </footer>
       )}
-      {!MANTRA_RISE && <footer
-        ref={invocation}
-        className="page-two-invocation"
-        style={MANTRA_GLOW && !MANTRA_BORDER ? mantraGlowStyle : undefined}
-        aria-label="Ganesha invocation"
-      >
-        <div style={MANTRA_BORDER ? { position: 'relative', display: 'inline-block' } : undefined}>
-          {MANTRA_BORDER && <MantraRoyalFrame />}
-          <div style={MANTRA_BORDER ? { ...GLASS, ...(MANTRA_GLOW ? mantraGlowStyle : {}), position: 'relative', zIndex: 1, opacity: 'var(--mantra-text-opacity, 0)' } : GLASS}>
-          <h2 lang="or" className="page-two-invocation__title" style={GLASS_TEXT}>
-            ଶ୍ରୀ ଗଣେଶାୟ ନମଃ
-          </h2>
-          <p lang="en" className="page-two-invocation__romanization" style={{ ...GLASS_TEXT, textAlign: 'center', marginTop: '0.2em' }}>
-            Sri Ganeshaya Namah
-          </p>
-          </div>
+      {!MANTRA_RISE && (
+        <div ref={invocation} className="mantra-ticker-stage" data-revealed="false" aria-label="Ganesha invocation">
+          <style>{`
+            .mantra-ticker-stage { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+            .mantra-ticker {
+              position: absolute; inset-inline: 0; overflow: hidden;
+              display: flex; align-items: center;
+              padding-block: clamp(6px, 1.1dvh, 12px);
+              background: linear-gradient(90deg, transparent, rgb(35 15 58 / .22) 20%, rgb(35 15 58 / .22) 80%, transparent);
+              opacity: 0; visibility: hidden;
+              transition: opacity .65s ease, transform .8s cubic-bezier(.2,.8,.2,1), visibility 0s linear .8s;
+              -webkit-mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+              mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+            }
+            .mantra-ticker--or { top: max(1.5dvh, env(safe-area-inset-top, 0px)); transform: translateY(-110%); color: #fff1cc; font: 650 clamp(1.25rem, 2.65vw, 2.2rem)/1.35 var(--font-odia); }
+            .mantra-ticker--en { bottom: max(1.5dvh, env(safe-area-inset-bottom, 0px)); transform: translateY(110%); color: #ffe8bd; font: 650 clamp(.83rem, 1.25vw, 1.12rem)/1.45 var(--font-inscription); letter-spacing: .09em; text-transform: uppercase; }
+            .mantra-ticker-stage[data-revealed="true"] .mantra-ticker { opacity: 1; visibility: visible; transform: translateY(0); transition-delay: 0s; }
+            .mantra-ticker__track { display: flex; width: max-content; flex: none; animation: mantra-ticker-scroll 26s linear infinite; animation-play-state: paused; }
+            .mantra-ticker-stage[data-revealed="true"] .mantra-ticker__track { animation-play-state: running; }
+            .mantra-ticker__group { display: flex; align-items: center; justify-content: space-around; min-width: 100vw; flex: none; }
+            .mantra-ticker__item { flex: none; white-space: nowrap; padding-inline: clamp(14px, 2.1vw, 42px); text-shadow: 0 0 2px rgb(255 218 145 / .72), 0 0 4px rgb(255 183 74 / .32); }
+            .mantra-ticker__separator { margin-inline-start: clamp(20px, 3vw, 60px); color: #d8b8ff; opacity: .7; font-size: .7em; }
+            @keyframes mantra-ticker-scroll { from { transform: translate3d(0,0,0); } to { transform: translate3d(-50%,0,0); } }
+            @media (prefers-reduced-motion: reduce) {
+              .mantra-ticker { transition: none; justify-content: center; mask-image: none; }
+              .mantra-ticker__track { animation: none; width: auto; }
+              .mantra-ticker__group { min-width: 0; }
+              .mantra-ticker__group + .mantra-ticker__group, .mantra-ticker__item + .mantra-ticker__item, .mantra-ticker__separator { display: none; }
+            }
+          `}</style>
+          <MantraTicker language="or" phrase="ଶ୍ରୀ ଗଣେଶାୟ ନମଃ" />
+          <MantraTicker language="en" phrase="Sri Ganeshaya Namah" />
         </div>
-      </footer>}
+      )}
     </div>
   )
 }
