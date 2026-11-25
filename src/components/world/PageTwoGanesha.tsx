@@ -1,7 +1,7 @@
 import { Environment, Lightformer } from '@react-three/drei'
 import { useFrame, useThree } from '@react-three/fiber'
 import { useLayoutEffect, useMemo, useRef, type RefObject } from 'react'
-import { Group, MathUtils, Mesh, Vector2, Vector3, type BufferAttribute, type BufferGeometry, type MeshLambertMaterial, type MeshStandardMaterial, type Object3D, type Points, type ShaderMaterial } from 'three'
+import { AdditiveBlending, BufferAttribute, BufferGeometry, Group, MathUtils, Mesh, Points, ShaderMaterial, Vector2, Vector3, type MeshLambertMaterial, type MeshStandardMaterial, type Object3D } from 'three'
 import { ScrollTrigger } from '../../lib/gsap'
 import { useReducedMotion } from '../../lib/useReducedMotion'
 import { Model, modelMetalnessMap } from '../Model'
@@ -451,6 +451,89 @@ function prepareLotus(root: Object3D) {
   petals.add(seat)
 }
 
+// Sample the real outer petal mesh so pollen begins on the moving flower.
+function makePetalPollen(petals: LotusMesh) {
+  const source = petals.geometry.getAttribute('position')
+  const sectors = 24
+  const tips: ({ x: number; y: number; z: number; score: number } | undefined)[] = Array(sectors)
+  for (let i = 0; i < source.count; i++) {
+    const x = source.getX(i), y = source.getY(i), z = source.getZ(i)
+    const radius = Math.hypot(x, z)
+    if (radius < 0.145 || y < 0.018) continue
+    const angle = Math.atan2(z, x)
+    const bin = Math.min(sectors - 1, Math.floor((angle + Math.PI) / (2 * Math.PI) * sectors))
+    const score = radius + 0.42 * y
+    if (!tips[bin] || score > tips[bin]!.score) tips[bin] = { x, y, z, score }
+  }
+  const positions: number[] = []
+  const seeds: number[] = []
+  for (let i = 0; i < sectors; i++) {
+    const tip = tips[i]
+    if (!tip) continue
+    for (let j = 0; j < 2; j++) {
+      positions.push(tip.x, tip.y, tip.z)
+      seeds.push(((i * 73 + j * 37 + 19) % 113) / 113, ((i * 41 + j * 59 + 7) % 101) / 101)
+    }
+  }
+  const geometry = new BufferGeometry()
+  geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3))
+  geometry.setAttribute('aSeed', new BufferAttribute(new Float32Array(seeds), 2))
+  const material = new ShaderMaterial({
+    transparent: true, depthWrite: false, depthTest: true,
+    blending: AdditiveBlending, toneMapped: false,
+    uniforms: { uPhase: { value: 0 }, uStrength: { value: 0 }, uDpr: { value: 1 } },
+    vertexShader: /* glsl */ `
+      attribute vec2 aSeed;
+      uniform float uPhase, uStrength, uDpr;
+      varying float vAlpha, vTint;
+      void main() {
+        float radius = length(position.xz);
+        float angle = atan(position.z, position.x);
+        float stagger = 0.38 * sin(angle * 3.0) + 0.17 * cos(angle * 5.0);
+        // Release only on the opening half of the same 5.6-second bloom cycle.
+        float birth = 0.55 + aSeed.x * 1.65 - stagger * 5.6 / 6.2831853;
+        float life = 1.35 + aSeed.y * 1.05;
+        float age = mod(uPhase - birth + 5.6, 5.6);
+        float t = clamp(age / life, 0.0, 1.0);
+        float birthCycle = 0.5 - 0.5 * cos(birth * 6.2831853 / 5.6 + stagger);
+        float bloom = smoothstep(0.0, 1.0, birthCycle) * uStrength;
+        float flex = smoothstep(0.129, 0.20, radius) * mix(0.75, 1.0, smoothstep(0.025, 0.09, position.y));
+        vec3 origin = position;
+        origin.xz *= 1.0 + 0.10 * flex * bloom;
+        origin.y -= 0.015 * flex * bloom;
+        vec2 radial = position.xz / max(radius, 0.0001);
+        vec2 tangent = vec2(-radial.y, radial.x);
+        vec3 p = origin;
+        p.xz += radial * (0.025 + 0.045 * aSeed.y) * t;
+        p.xz += tangent * (sin(t * 3.14159 + aSeed.x * 6.28318) - sin(aSeed.x * 6.28318)) * 0.012 * t;
+        p.y += (0.055 + 0.065 * aSeed.x) * t;
+        vAlpha = smoothstep(0.0, 0.14, t) * (1.0 - smoothstep(0.35, 1.0, t)) * uStrength;
+        vTint = aSeed.y;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+        gl_PointSize = (2.8 + 3.0 * aSeed.x) * min(uDpr, 2.0) * (1.0 - 0.28 * t);
+      }`,
+    fragmentShader: /* glsl */ `
+      varying float vAlpha, vTint;
+      void main() {
+        float r = length(gl_PointCoord - vec2(0.5)) * 2.0;
+        if (r >= 1.0 || vAlpha < 0.001) discard;
+        float core = exp(-r * r * 22.0);
+        float halo = exp(-r * r * 5.0) * (1.0 - smoothstep(0.65, 1.0, r));
+        vec3 gold = vec3(1.0, 0.72, 0.36);
+        vec3 lavender = vec3(0.72, 0.49, 1.0);
+        vec3 color = mix(gold, lavender, smoothstep(0.45, 0.85, vTint));
+        color = mix(color, vec3(1.0, 0.95, 0.85), core * 0.75);
+        gl_FragColor = vec4(color, (0.75 * core + 0.32 * halo) * vAlpha);
+      }`,
+  })
+  const points = new Points(geometry, material)
+  points.name = 'lotus-petal-pollen'
+  points.frustumCulled = false
+  points.renderOrder = 3
+  petals.add(points)
+  return points
+}
+
 function LotusFigure({ frame, invocation }: {
   frame: RefObject<HTMLDivElement | null>
   invocation: RefObject<HTMLElement | null>
@@ -462,6 +545,7 @@ function LotusFigure({ frame, invocation }: {
   const model = useRef<Group>(null)
   const auraMaterial = useRef<ShaderMaterial>(null)
   const foregroundMist = useRef<ShaderMaterial>(null)
+  const pollen = useRef<Points<BufferGeometry, ShaderMaterial> | null>(null)
   const auraUniforms = useMemo(() => ({
     uTime: { value: 0 }, uFade: { value: 0 },
     uAura: { value: AURA_SETTINGS.aura }, uRays: { value: AURA_SETTINGS.rays },
@@ -529,6 +613,16 @@ function LotusFigure({ frame, invocation }: {
     }
   }, [invalidate, reducedMotion])
 
+  useLayoutEffect(() => () => {
+    const points = pollen.current
+    if (points) {
+      points.removeFromParent()
+      points.geometry.dispose()
+      points.material.dispose()
+      pollen.current = null
+    }
+  }, [])
+
   useFrame(({ viewport }, delta) => {
     const petals = model.current?.getObjectByName(PETALS) as LotusMesh | undefined
     const seat = petals?.getObjectByName(SEAT)
@@ -595,6 +689,14 @@ function LotusFigure({ frame, invocation }: {
       condense.value = Math.max(condense.value, Math.min(target, centeredReveal))
       if (Math.abs(condense.value - target) > 0.0001) invalidate()
     } else condense.value = 1
+    // Pollen follows the actual lotus transform and the same opening cycle.
+    if (!reducedMotion && !pollen.current && opening) pollen.current = makePetalPollen(petals)
+    if (pollen.current) {
+      const uniforms = pollen.current.material.uniforms
+      uniforms.uPhase.value = idleTime.current % 5.6
+      uniforms.uStrength.value = reducedMotion ? 0 : (opening?.value.x ?? 0) * fade * condense.value
+      uniforms.uDpr.value = viewport.dpr
+    }
     if (invocation.current) {
       const el = invocation.current
       if (MANTRA_RISE) {
