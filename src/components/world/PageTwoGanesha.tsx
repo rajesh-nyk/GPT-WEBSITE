@@ -731,7 +731,16 @@ const mantraGlowStyle = {
 function MantraRoyalFrame() {
   return (
     <svg aria-hidden="true" viewBox="0 0 340 120" preserveAspectRatio="none"
-      style={{ position: 'absolute', inset: '-17px -13px', width: 'calc(100% + 26px)', height: 'calc(100% + 34px)', overflow: 'visible', pointerEvents: 'none', zIndex: 1 }}>
+      style={{
+        position: 'absolute',
+        inset: '-31px clamp(-38px, -5vw, -20px)',
+        width: 'calc(100% + clamp(40px, 10vw, 76px))',
+        height: 'calc(100% + 62px)',
+        overflow: 'visible',
+        pointerEvents: 'none',
+        zIndex: 1,
+        filter: 'drop-shadow(0 0 2px rgb(233 213 255 / .72)) drop-shadow(0 0 4px rgb(171 110 250 / .32))',
+      }}>
       <defs>
         <linearGradient id="mantra-dream-edge" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="#AB6EFA" stopOpacity="0.85" />
