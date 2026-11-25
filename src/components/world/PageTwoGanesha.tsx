@@ -719,6 +719,35 @@ function LotusFigure({ frame, invocation }: {
   )
 }
 
+const MANTRA_BORDER = typeof window !== 'undefined' &&
+  new URLSearchParams(window.location.search).get('mantra-border') === '1'
+const MANTRA_GLOW = typeof window !== 'undefined' &&
+  new URLSearchParams(window.location.search).get('mantra-glow') === '1'
+const mantraGlowStyle = {
+  textShadow: 'none',
+  filter: 'drop-shadow(0 0 2px rgb(255 218 145 / .72)) drop-shadow(0 0 4px rgb(255 183 74 / .32))',
+} as const
+
+function MantraRoyalFrame() {
+  const corners = [
+    { top: -3, left: -3, rotate: '0deg' },
+    { top: -3, right: -3, rotate: '90deg' },
+    { bottom: -3, right: -3, rotate: '180deg' },
+    { bottom: -3, left: -3, rotate: '270deg' },
+  ] as const
+  return (
+    <span aria-hidden="true" style={{ position: 'absolute', inset: '-10px -10px', border: '1px solid rgba(201, 157, 79, .68)', borderRadius: 3, pointerEvents: 'none' }}>
+      <span style={{ position: 'absolute', inset: 3, border: '1px solid rgba(201, 157, 79, .25)', borderRadius: 2 }} />
+      {corners.map((corner, i) => (
+        <svg key={i} viewBox="0 0 30 30" width="28" height="28" style={{ position: 'absolute', ...corner }} fill="none" stroke="#e7be72" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M2 27V9Q2 2 9 2H27M5 23V11Q5 5 11 5H23M5 15C14 15 17 10 13 7C10 5 7 8 9 11C11 14 15 12 16 8M15 5C15 14 10 17 7 13" />
+          <path d="M2 2L6 0L10 2L6 4Z" fill="#e7be72" stroke="none" />
+        </svg>
+      ))}
+    </span>
+  )
+}
+
 export function PageTwoGanesha() {
   const frame = useRef<HTMLDivElement>(null)
   const invocation = useRef<HTMLElement>(null)
@@ -749,18 +778,19 @@ export function PageTwoGanesha() {
       {!MANTRA_RISE && <footer
         ref={invocation}
         className="page-two-invocation"
-        style={typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('mantra-glow') === '1'
-          ? { textShadow: 'none', filter: 'drop-shadow(0 0 2px rgb(255 218 145 / .72)) drop-shadow(0 0 4px rgb(255 183 74 / .32))' }
-          : undefined}
+        style={MANTRA_GLOW && !MANTRA_BORDER ? mantraGlowStyle : undefined}
         aria-label="Ganesha invocation"
       >
-        <div style={GLASS}>
+        <div style={MANTRA_BORDER ? { position: 'relative', display: 'inline-block' } : undefined}>
+          {MANTRA_BORDER && <MantraRoyalFrame />}
+          <div style={MANTRA_BORDER && MANTRA_GLOW ? { ...GLASS, ...mantraGlowStyle } : GLASS}>
           <h2 lang="or" className="page-two-invocation__title" style={GLASS_TEXT}>
             ଶ୍ରୀ ଗଣେଶାୟ ନମଃ
           </h2>
           <p lang="en" className="page-two-invocation__romanization" style={GLASS_TEXT}>
             Sri Ganeshaya Namah
           </p>
+          </div>
         </div>
       </footer>}
     </div>
