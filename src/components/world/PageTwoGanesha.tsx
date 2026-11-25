@@ -421,8 +421,9 @@ export function PageTwoGanesha() {
           paddingInline: '16px',
           opacity: 0,
           transform: 'translate3d(0, 12px, 0)',
-          color: '#f4dca8',
-          textShadow: '0 0 18px rgba(231, 174, 93, 0.28), 0 2px 10px rgba(5, 3, 9, 0.92)',
+          // Static multi-radius neon shadows travel with the existing opacity
+          // reveal: no animated blur, additional canvas or WebGL render pass.
+          color: '#fff5ce',
           pointerEvents: 'none',
         }}
       >
@@ -432,6 +433,8 @@ export function PageTwoGanesha() {
           fontSize: 'clamp(1.25rem, min(3.1vw, 4.1dvh), 2.2rem)',
           fontWeight: 400,
           lineHeight: 1.5,
+          color: '#fff9dc',
+          textShadow: '0 0 2px #fffce8, 0 0 5px #fff1aa, 0 0 12px #ffc43d, 0 0 26px rgba(255, 153, 16, 0.88), 0 0 48px rgba(255, 103, 22, 0.52), 0 0 68px rgba(185, 76, 255, 0.30)',
         }}>ଶ୍ରୀ ଗଣେଶାୟ ନମଃ</span>
         <span lang="en" style={{
           display: 'block',
@@ -440,7 +443,8 @@ export function PageTwoGanesha() {
           fontWeight: 500,
           lineHeight: 1.4,
           letterSpacing: '0.16em',
-          color: '#e3c99b',
+          color: '#ffe7b0',
+          textShadow: '0 0 2px #fff3d0, 0 0 6px #ffd36e, 0 0 15px rgba(255, 162, 44, 0.95), 0 0 30px rgba(255, 105, 59, 0.55), 0 0 45px rgba(193, 94, 255, 0.32)',
           marginTop: '0.25em',
         }}>Sri Ganeshaya Namah</span>
       </footer>
