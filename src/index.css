@@ -1865,14 +1865,14 @@ html.cinematic-scroll { touch-action: pan-x pinch-zoom; }
 /* Dark optical glass: clear centre, curved-looking specular shoulders,
    and a narrow dispersive bevel. Keep the original stars legible. */
 .page-two-sky, .page-glass { position: absolute; inset: 0; }
+.page-two-sky { filter: saturate(1.12) contrast(1.06); }
 .page-glass {
   background:
     radial-gradient(ellipse at 49% 48%, transparent 28%, rgb(13 7 29 / .12) 68%, rgb(1 0 5 / .65) 100%),
     radial-gradient(ellipse 90% 18% at 50% 0%, rgb(226 215 255 / .10), transparent 85%),
     radial-gradient(ellipse 80% 22% at 50% 100%, rgb(158 130 230 / .095), transparent 90%),
     linear-gradient(155deg, rgb(23 13 53 / .11) 0%, rgb(73 33 138 / .07) 48%, rgb(120 44 194 / .13) 100%);
-  -webkit-backdrop-filter: saturate(1.12) contrast(1.06);
-  backdrop-filter: saturate(1.12) contrast(1.06);
+  /* The sky is opaque; grade its layer directly instead of sampling the moving backdrop. */
   pointer-events: none;
 }
 .page-glass::before {
