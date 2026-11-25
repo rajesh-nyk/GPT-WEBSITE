@@ -25,7 +25,7 @@ const PEAK_GLOW = 0.65
 // Approved aura is now the default. Use aura=0 for the original scene.
 const AURA_ENABLED = typeof window === 'undefined' ||
   new URLSearchParams(window.location.search).get('aura') !== '0'
-const AURA_SETTINGS = { aura: 0.57, rays: 0.43, violet: 0.38, lotus: 0.27, rayCount: 48 } as const
+const AURA_SETTINGS = { aura: 0, rays: 0.43, violet: 0.38, lotus: 0.27, rayCount: 48 } as const
 // Optional A/B comparison: shine=0 restores the previous rays.
 const RAY_SHINE = typeof window !== 'undefined' &&
   new URLSearchParams(window.location.search).get('shine') !== '0' ? 1 : 0
