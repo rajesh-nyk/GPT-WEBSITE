@@ -1854,10 +1854,11 @@ html.cinematic-scroll { touch-action: pan-x pinch-zoom; }
 .page-angle {
   --overhang: min(28vh, 20vw);
   --lead: 0px;
+  --edge-shift: 0px;
   position: absolute;
   inset: calc(-1 * var(--overhang)) 0 0;
   background: #07060d;
-  clip-path: polygon(0 var(--overhang), 100% calc(var(--overhang) - var(--lead)), 100% 100%, 0 100%);
+  clip-path: polygon(0 calc(var(--overhang) + var(--edge-shift)), 100% calc(var(--overhang) + var(--edge-shift) - var(--lead)), 100% 100%, 0 100%);
   pointer-events: none;
 }
 
@@ -1890,7 +1891,7 @@ html.cinematic-scroll { touch-action: pan-x pinch-zoom; }
   --rim-width: 100%;
   --rim-energy: 0;
   position: absolute;
-  left: 0; top: var(--overhang);
+  left: 0; top: calc(var(--overhang) + var(--edge-shift));
   width: var(--rim-width); height: 32px;
   transform-origin: 0 0;
   transform: rotate(var(--rim-angle));

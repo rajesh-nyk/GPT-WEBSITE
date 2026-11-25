@@ -4,7 +4,7 @@ import { useReducedMotion } from '../lib/useReducedMotion'
 import { PageTwoSky } from './world/PageTwoSky'
 
 /** A continuous diagonal wipe, not a staggered strip effect.
- * Right edge leads while the page rises; the top becomes level at rest.
+ * Right edge leads at a constant angle until both corners are off-screen.
  * Both the vertical travel and the angled edge use the same scroll progress.
  */
 export function SlicedPageTwo() {
@@ -21,7 +21,12 @@ export function SlicedPageTwo() {
     const update = (trigger: ScrollTrigger) => {
       const p = Math.max(0, Math.min(1, trigger.progress))
       const envelope = Math.sin(Math.PI * p) ** 0.8
-      const lead = amplitude * envelope
+      const lead = amplitude
+      const clearance = Math.min(40, Math.max(0, Math.min(window.innerHeight * .28, window.innerWidth * .20) - lead - 2))
+      // At entry the right corner touches the viewport bottom. At arrival
+      // the left corner clears the top, including the optical rim.
+      const shift = lead * (1 - p) - clearance * p
+      panel.style.setProperty('--edge-shift', shift.toFixed(2) + 'px')
       panel.style.setProperty('--lead', lead.toFixed(2) + 'px')
       // The optical bevel follows the exact diagonal, without tilting the scene.
       const width = Math.max(1, panel.clientWidth)
@@ -31,7 +36,7 @@ export function SlicedPageTwo() {
       rim.current?.style.setProperty('--rim-energy', String(Math.min(1, envelope * 1.8)))
     }
     const refresh = (trigger: ScrollTrigger) => {
-      amplitude = Math.min(window.innerHeight * .26, window.innerWidth * .18)
+      amplitude = Math.min(window.innerHeight * .23, window.innerWidth * .16, Math.max(0, Math.min(window.innerHeight * .28, window.innerWidth * .20) - 42))
       update(trigger)
     }
     const trigger = ScrollTrigger.create({
@@ -45,6 +50,7 @@ export function SlicedPageTwo() {
     return () => {
       trigger.kill()
       panel.style.removeProperty('--lead')
+      panel.style.removeProperty('--edge-shift')
       rim.current?.style.removeProperty('--rim-angle')
       rim.current?.style.removeProperty('--rim-width')
       rim.current?.style.removeProperty('--rim-energy')
