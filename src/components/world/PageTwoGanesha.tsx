@@ -101,9 +101,22 @@ const AURA_FRAGMENT = /* glsl */ `
     color = mix(color, vec3(0.67, 0.43, 0.98), wisps);
     float radius = length(p);
     float boundary = 1.0 - smoothstep(0.62, 1.55, radius);
-    // Give the mist a visible body around the head even in low noise regions.
-    float alpha = (0.28 + 0.72 * density) * 0.65 * edge * boundary * uFade;
-    return vec4(color, alpha);
+    // Preserve the existing surrounding cloud volume, and add a concentrated
+    // upper-head cloud bank using the same moving noise fields. Its centre
+    // sits just below the crown tip, so visible wisps rise above the silhouette.
+    float surrounding = (0.28 + 0.72 * density) * 0.65 * boundary;
+    vec2 crown = (head - vec2(0.0, 0.055)) / vec2(0.145, 0.115);
+    float crownShape = exp(-dot(crown, crown) * 0.9)
+      * (1.0 - smoothstep(1.15, 1.85, length(crown)));
+    float crownDensity = (0.48 + 0.52 * density) * crownShape;
+    float crownAlpha = crownDensity * 0.72;
+    vec3 crownColor = mix(vec3(0.34, 0.17, 0.66), vec3(0.70, 0.45, 1.0), wisps);
+    // Composite the extra volume into the existing mist instead of adding
+    // another mesh or noise loop. The opaque statue still occludes both.
+    float extra = crownAlpha * (1.0 - surrounding);
+    float volume = surrounding + extra;
+    color = (color * surrounding + crownColor * extra) / max(volume, 0.0001);
+    return vec4(color, volume * edge * uFade);
   }
   #endif
 
