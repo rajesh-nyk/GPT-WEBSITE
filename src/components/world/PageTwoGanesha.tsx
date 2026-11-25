@@ -739,7 +739,7 @@ function MantraRoyalFrame() {
         overflow: 'visible',
         pointerEvents: 'none',
         zIndex: 1,
-        filter: 'drop-shadow(0 0 2px rgb(233 213 255 / .72)) drop-shadow(0 0 4px rgb(171 110 250 / .32))',
+        filter: 'drop-shadow(0 0 2px rgb(244 233 255 / 1)) drop-shadow(0 0 4px rgb(205 161 255 / .85)) drop-shadow(0 0 7px rgb(171 110 250 / .55))',
       }}>
       <defs>
         <linearGradient id="mantra-dream-edge" x1="0%" y1="0%" x2="100%" y2="100%">
