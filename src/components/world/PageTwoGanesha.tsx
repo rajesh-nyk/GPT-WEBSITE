@@ -611,6 +611,8 @@ function LotusFigure({ frame, invocation }: {
         if (el.style.getPropertyValue('--mantra-frame-morph') !== key) {
           el.style.setProperty('--mantra-frame-morph', key)
           el.style.setProperty('--mantra-frame-visibility', morph > 0.002 ? 'visible' : 'hidden')
+          el.style.setProperty('--mantra-flow-play', morph > 0.25 && !reducedMotion ? 'running' : 'paused')
+          el.style.setProperty('--mantra-flow-opacity', MathUtils.smoothstep(morph, 0.25, 0.7).toFixed(3))
           const shape = mantraFramePath(morph)
           el.querySelectorAll<SVGPathElement>('[data-mantra-frame-shape]').forEach(node => node.setAttribute('d', shape))
           el.querySelector<SVGGElement>('[data-mantra-frame-ornaments]')?.setAttribute('transform',
@@ -770,6 +772,21 @@ function MantraRoyalFrame() {
         zIndex: 0,
         visibility: 'var(--mantra-frame-visibility, hidden)' as 'hidden',
       }}>
+      <style>{`
+        @keyframes mantra-edge-flow {
+          from { stroke-dashoffset: var(--flow-start, 0); }
+          to { stroke-dashoffset: var(--flow-end, -100); }
+        }
+        .mantra-flow-streak {
+          animation: mantra-edge-flow 5.5s linear infinite;
+          animation-play-state: var(--mantra-flow-play, paused);
+        }
+        .mantra-flow-mid { --flow-start: -5; --flow-end: -105; }
+        .mantra-flow-core { --flow-start: -9; --flow-end: -109; }
+        @media (prefers-reduced-motion: reduce) {
+          .mantra-flow-streak { animation: none; visibility: hidden; }
+        }
+      `}</style>
       <defs>
         <linearGradient id="mantra-dream-edge" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="#AB6EFA" stopOpacity="0.85" />
@@ -789,6 +806,14 @@ function MantraRoyalFrame() {
       <path data-mantra-frame-shape="" d={mantraFramePath(0)} fill="url(#mantra-clear-glass)" />
       <g style={{ filter: 'drop-shadow(0 0 2px rgb(244 233 255 / 1)) drop-shadow(0 0 4px rgb(205 161 255 / .85)) drop-shadow(0 0 7px rgb(171 110 250 / .55))' }}>
         <path data-mantra-frame-shape="" d={mantraFramePath(0)} fill="none" stroke="url(#mantra-dream-edge)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+        <g fill="none" strokeLinecap="round" style={{ opacity: 'var(--mantra-flow-opacity, 0)' }}>
+          <path data-mantra-frame-shape="" className="mantra-flow-streak" d={mantraFramePath(0)} pathLength={100}
+            stroke="#AB6EFA" strokeOpacity={0.56} strokeWidth={3.2} strokeDasharray="24 76" vectorEffect="non-scaling-stroke" />
+          <path data-mantra-frame-shape="" className="mantra-flow-streak mantra-flow-mid" d={mantraFramePath(0)} pathLength={100}
+            stroke="#D7B4FF" strokeOpacity={0.9} strokeWidth={2.3} strokeDasharray="14 86" vectorEffect="non-scaling-stroke" />
+          <path data-mantra-frame-shape="" className="mantra-flow-streak mantra-flow-core" d={mantraFramePath(0)} pathLength={100}
+            stroke="#FFF5FF" strokeWidth={1.8} strokeDasharray="6 94" vectorEffect="non-scaling-stroke" />
+        </g>
         <g data-mantra-frame-ornaments="" transform="translate(170 60) scale(.08 .03) translate(-170 -60)">
       <g fill="none" stroke="url(#mantra-dream-edge)" strokeLinecap="round" strokeLinejoin="round">
         <path vectorEffect="non-scaling-stroke" strokeWidth="0.8" opacity="0.72" d="M3 42C12 18 34 8 76 8M264 8C306 8 328 18 337 42M337 78C328 102 306 112 264 112M76 112C34 112 12 102 3 78" />
