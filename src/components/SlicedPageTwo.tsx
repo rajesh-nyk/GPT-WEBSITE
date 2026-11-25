@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from 'react'
 import { ScrollTrigger } from '../lib/gsap'
 import { useReducedMotion } from '../lib/useReducedMotion'
-import { PageTwoSky } from './world/PageTwoSky'
+import { PageTwoSky, skyWipe } from './world/PageTwoSky'
 
 /** A continuous diagonal wipe, not a staggered strip effect.
  * Right edge leads at a constant angle until both corners are off-screen.
@@ -27,6 +27,8 @@ export function SlicedPageTwo() {
       // At entry the right corner touches the viewport bottom. At arrival
       // the left corner clears the top, including the optical rim.
       const shift = lead * (1 - p) - clearance * p
+      skyWipe.shift = Number(shift.toFixed(2))
+      skyWipe.lead = Number(lead.toFixed(2))
       const offset = shift.toFixed(2) + 'px'
       panel.style.clipPath = `polygon(0 calc(var(--overhang) + ${offset}), 100% calc(var(--overhang) + ${offset} - var(--lead)), 100% 100%, 0 100%)`
       if (rim.current) {
@@ -54,6 +56,7 @@ export function SlicedPageTwo() {
     refresh(trigger)
     return () => {
       trigger.kill()
+      skyWipe.shift = skyWipe.lead = 0
       panel.style.removeProperty('--lead')
       panel.style.removeProperty('clip-path')
       rim.current?.style.removeProperty('transform')
