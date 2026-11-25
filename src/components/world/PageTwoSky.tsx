@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { gsap } from '../../lib/gsap'
+import { gsap, ScrollTrigger } from '../../lib/gsap'
 import { useReducedMotion } from '../../lib/useReducedMotion'
 import { SceneCanvas } from '../three/SceneCanvas'
 import { WorldBackdrop } from './WorldBackdrop'
@@ -10,17 +10,40 @@ function SkyScene() {
   const reducedMotion = useReducedMotion()
   const stats = useRef({ frames: 0, elapsed: 0 })
   const gl = useThree((s) => s.gl)
-  useEffect(() => () => { gl.setScissorTest(false) }, [gl])
+  const geometry = useRef<{ top: number; height: number; heroBottom: number } | null>(null)
+  useEffect(() => {
+    const canvas = gl.domElement
+    const hero = document.getElementById('hero')
+    const measure = () => {
+      const rect = canvas.getBoundingClientRect()
+      const y = window.scrollY
+      geometry.current = { top: rect.top + y, height: rect.height, heroBottom: hero ? hero.getBoundingClientRect().bottom + y : Infinity }
+    }
+    const observer = new ResizeObserver(measure)
+    observer.observe(canvas)
+    if (hero) observer.observe(hero)
+    window.addEventListener('resize', measure)
+    ScrollTrigger.addEventListener('refresh', measure)
+    measure()
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', measure)
+      ScrollTrigger.removeEventListener('refresh', measure)
+      gl.setScissorTest(false)
+    }
+  }, [gl])
   useFrame(({ size }, delta) => {
     // Keep full-size projection and pixel density, but shade only rows inside
     // the viewport. The canvas is opaque and has no postprocessing, so pixels
     // outside this rectangle cannot contribute to the visible image.
     // The CSS diagonal clip remains authoritative (scissor is conservative).
-    const rect = gl.domElement.getBoundingClientRect()
-    if (!reducedMotion && rect.height > 0 && size.height > 0) {
-      const ratio = size.height / rect.height
-      const top = Math.max(0, Math.floor(-rect.top * ratio) - 2)
-      const bottom = Math.min(size.height, Math.ceil((window.innerHeight - rect.top) * ratio) + 2)
+    const measured = geometry.current
+    const y = window.scrollY
+    if (!reducedMotion && measured && measured.height > 0 && size.height > 0) {
+      const ratio = size.height / measured.height
+      const rectTop = measured.top - y
+      const top = Math.max(0, Math.floor(-rectTop * ratio) - 2)
+      const bottom = Math.min(size.height, Math.ceil((window.innerHeight - rectTop) * ratio) + 2)
       const height = Math.max(0, bottom - top)
       if (height > 0) {
         gl.setScissor(0, size.height - bottom, size.width, height)
@@ -29,8 +52,7 @@ function SkyScene() {
     } else gl.setScissorTest(false)
     // The section begins after the hero, and the canvas includes its overhang.
     // Read the hero only when needed for the HUD; do not change its ownership.
-    const hero = document.getElementById('hero')
-    if (!hero || hero.getBoundingClientRect().bottom > 0 || delta > .5) {
+    if (!measured || measured.heroBottom > y || delta > .5) {
       stats.current = { frames: 0, elapsed: 0 }
       return
     }
@@ -63,8 +85,6 @@ export function PageTwoSky() {
   useEffect(() => {
     let previous = false
     const tick = () => {
-      const hero = document.getElementById('hero')
-      if (!hero) return
       // The diagonal starts exactly outside the viewport; wake before the
       // first visible pixels, and stop when returned to the hero.
       const next = !document.hidden && window.scrollY > 0
