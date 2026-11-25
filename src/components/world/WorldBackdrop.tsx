@@ -209,7 +209,7 @@ const fragment = /* glsl */ `
 /** Hover is fully on when the pointer is there; the 5% itself is HOVER_GAIN in the shader. */
 const RAY_HOVER = 1
 
-export function WorldBackdrop({ continuous = false }: { continuous?: boolean } = {}) {
+export function WorldBackdrop({ continuous = false, sunless = false }: { continuous?: boolean; sunless?: boolean } = {}) {
   const size = useThree((s) => s.size)
   const material = useMemo(
     () =>
@@ -229,8 +229,8 @@ export function WorldBackdrop({ continuous = false }: { continuous?: boolean } =
           uGaneshaCenter: { value: [0.5, 0.5] },
           uSunCenter: { value: [0.5, 0.6] },
           uSunRadius: { value: 0.2 },
-          uSun: { value: 1 },
-          uSunCoreFade: { value: 1 },
+          uSun: { value: sunless ? 0 : 1 },
+          uSunCoreFade: { value: sunless ? 0 : 1 },
           uHeroTime: { value: 0 },
           uHeroHover: { value: 0 },
           uRise: { value: 1 },
@@ -244,7 +244,7 @@ export function WorldBackdrop({ continuous = false }: { continuous?: boolean } =
           uBase: { value: new Color('#0a0a0c') },
           uRed: { value: new Color('#0a0a0c') },
           uRedGlow: { value: new Color('#000000') },
-          uGold: { value: new Color('#e0a84a') },
+          uGold: { value: new Color(sunless ? '#000000' : '#e0a84a') },
           uDeep: { value: new Color('#000000') },
           // With the Lotus Ganesha (Rajesh, 22 Nov 2026: "match and complement the lotus and its
           // glow"): a deep rose halo and blush rays instead of the red-brown and orange gold.
@@ -258,7 +258,7 @@ export function WorldBackdrop({ continuous = false }: { continuous?: boolean } =
           uRayHover: { value: 0 },
         },
       }),
-    [],
+    [sunless],
   )
   material.uniforms.uAspect.value = size.width / size.height
 
@@ -290,8 +290,8 @@ export function WorldBackdrop({ continuous = false }: { continuous?: boolean } =
     u.uGaneshaCenter.value = glowCenters.ganesha
     u.uSunCenter.value = glowCenters.sun
     u.uSunRadius.value = Math.max(glowCenters.sunRadius, 0.01)
-    u.uSun.value = continuous ? 1 : 1 - MathUtils.smootherstep(journey.t, 0.05, 0.6)
-    u.uSunCoreFade.value = continuous ? 1 : 1 - MathUtils.smootherstep(journey.t, 0.02, 0.22)
+    u.uSun.value = sunless ? 0 : continuous ? 1 : 1 - MathUtils.smootherstep(journey.t, 0.05, 0.6)
+    u.uSunCoreFade.value = sunless ? 0 : continuous ? 1 : 1 - MathUtils.smootherstep(journey.t, 0.02, 0.22)
     u.uHeroTime.value = heroFx.time
     u.uHeroHover.value = heroFx.hover
     u.uRise.value = heroFx.rise

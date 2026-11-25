@@ -19,17 +19,6 @@ export default function App() {
     const timer = window.setInterval(() => {
       const now = performance.now()
       const y = window.scrollY
-      // The WebGL chapter is deliberately suspended when fully out of view.
-      // Do not leave the last rendered FPS looking like a current measurement.
-      const hero = document.getElementById('hero')
-      if (hero && hero.getBoundingClientRect().bottom <= 0) {
-        const fps = document.getElementById('scene-fps')
-        if (fps) {
-          fps.textContent = '— FPS'
-          fps.removeAttribute('data-rate')
-          fps.title = 'WebGL paused: Page 1 is off-screen'
-        }
-      }
       if (document.hidden || now - previousTime > 1000) {
         reset()
         return

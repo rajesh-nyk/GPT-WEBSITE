@@ -1856,7 +1856,20 @@ html.cinematic-scroll { touch-action: pan-x pinch-zoom; }
   --lead: 0px;
   position: absolute;
   inset: calc(-1 * var(--overhang)) 0 0;
-  background: linear-gradient(155deg, #170d35 0%, #49218a 48%, #782cc2 100%);
+  background: #07060d;
   clip-path: polygon(0 var(--overhang), 100% calc(var(--overhang) - var(--lead)), 100% 100%, 0 100%);
+  pointer-events: none;
+}
+
+/* Violet glass over the sunless galaxy. The entire layered composition is
+   clipped by the approved diagonal wipe, including the glass reflections. */
+.page-two-sky, .page-glass { position: absolute; inset: 0; }
+.page-glass {
+  background:
+    linear-gradient(155deg, rgb(23 13 53 / .36) 0%, rgb(73 33 138 / .28) 48%, rgb(120 44 194 / .36) 100%),
+    linear-gradient(130deg, rgb(230 211 255 / .075), transparent 36%, rgb(185 151 255 / .035) 74%, transparent);
+  -webkit-backdrop-filter: blur(1.5px) saturate(1.15);
+  backdrop-filter: blur(1.5px) saturate(1.15);
+  box-shadow: inset 0 1px 0 rgb(230 210 255 / .14);
   pointer-events: none;
 }

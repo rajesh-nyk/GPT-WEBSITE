@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from 'react'
 import { ScrollTrigger } from '../lib/gsap'
 import { useReducedMotion } from '../lib/useReducedMotion'
+import { PageTwoSky } from './world/PageTwoSky'
 
 /** A continuous diagonal wipe, not a staggered strip effect.
  * Right edge leads while the page rises; the top becomes level at rest.
@@ -47,7 +48,10 @@ export function SlicedPageTwo() {
       aria-label="Page 2"
       className="chapter-panel chapter-panel--sliced relative z-10 min-h-dvh w-full text-gold-light"
     >
-      <div ref={layer} className="page-angle" aria-hidden="true" />
+      <div ref={layer} className="page-angle" aria-hidden="true">
+        <PageTwoSky />
+        <div className="page-glass" />
+      </div>
     </section>
   )
 }

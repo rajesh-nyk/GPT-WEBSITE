@@ -70,7 +70,7 @@ const fragment =
 /** How far the stars slide left during the page 1 exit, in screen widths. */
 const STAR_DRIFT = 0.25
 
-export function GalaxyStars({ reducedMotion, constellation = false, continuous = false }: { reducedMotion: boolean; constellation?: boolean; continuous?: boolean }) {
+export function GalaxyStars({ reducedMotion, constellation = false, continuous = false, skipIntro = false }: { reducedMotion: boolean; constellation?: boolean; continuous?: boolean; skipIntro?: boolean }) {
   const material = useMemo(
     () =>
       new ShaderMaterial({
@@ -109,17 +109,17 @@ export function GalaxyStars({ reducedMotion, constellation = false, continuous =
           uColors: { value: STAR.starColors.map(hex) },
           uColorCount: { value: STAR.starColors.length },
           uWarp: { value: 0 },
-          uReveal: { value: 0 },
+          uReveal: { value: skipIntro ? 1 : 0 },
           uMode: { value: 1 }, // transparent: stars only, premultiplied alpha
           uBackground: { value: [0, 0, 0] },
           uOpacity: { value: STAR.opacity },
         },
       }),
-    [],
+    [skipIntro],
   )
 
   // Warp boost (click / intro) and intro progress, as in Galaxy.
-  const fx = useMemo(() => ({ boost: 0, depth: 0, reveal: STAR.intro && !reducedMotion ? 0 : 1 }), [reducedMotion])
+  const fx = useMemo(() => ({ boost: 0, depth: 0, reveal: STAR.intro && !reducedMotion && !skipIntro ? 0 : 1 }), [reducedMotion, skipIntro])
   useEffect(() => {
     const mouse = material.uniforms.uMouse.value as Vector2
     const active = material.uniforms.uMouseActiveFactor
