@@ -29,6 +29,10 @@ const AURA_SETTINGS = { aura: 0.57, rays: 0.43, violet: 0.38, lotus: 0.27, rayCo
 // Optional A/B comparison: shine=0 restores the previous rays.
 const RAY_SHINE = typeof window !== 'undefined' &&
   new URLSearchParams(window.location.search).get('shine') !== '0' ? 1 : 0
+// Experimental atmosphere: disabled by default; use ?mist=1 to compare.
+const MIST_EXPERIMENT = typeof window !== 'undefined' &&
+  new URLSearchParams(window.location.search).get('mist') === '1'
+const MIST_DEFINES = MIST_EXPERIMENT ? { FLOWING_MIST: 1 } : {}
 const lotusAuraGlow = { value: 0 }
 
 const AURA_VERTEX = /* glsl */ `
@@ -53,6 +57,54 @@ const AURA_FRAGMENT = /* glsl */ `
     return 0.5 + 0.5 * sin(p.x * 5.7 + sin(p.y * 4.4))
                        * cos(p.y * 6.1 - sin(p.x * 3.3));
   }
+  #ifdef FLOWING_MIST
+  uniform float uMistTime;
+  // Continuous lattice noise instead of hashing every moving UV directly.
+  // This keeps the cloud coherent between frames rather than sparkling.
+  float mistHash(vec2 p) {
+    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+  }
+  float mistNoise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mistHash(i), mistHash(i + vec2(1.0, 0.0)), u.x),
+               mix(mistHash(i + vec2(0.0, 1.0)), mistHash(i + vec2(1.0)), u.x), u.y);
+  }
+  float mistFbm(vec2 p) {
+    float value = 0.0;
+    float amplitude = 0.5;
+    // Four octaves per field instead of five to limit fragment cost.
+    for (int i = 0; i < 4; i++) {
+      value += amplitude * mistNoise(p);
+      p = mat2(0.8, -0.6, 0.6, 0.8) * p * 2.1 + vec2(3.1, 7.2);
+      amplitude *= 0.5;
+    }
+    return value / 0.9375;
+  }
+  vec4 flowingMist(vec2 uv, float edge) {
+    // Two counter-flowing fields, following the supplied shader's speed.
+    float t = uMistTime * 0.15;
+    vec2 p = (uv - 0.5) * vec2(1.64, 1.0);
+    vec2 q = p * 3.4 + vec2(t * 0.3, t * 0.1);
+    vec2 s = p * 2.8 + vec2(-t * 0.2, t * 0.15);
+    float n1 = mistFbm(q);
+    float n2 = mistFbm(s + vec2(n1 * 1.4, n1 * 0.9));
+    float density = smoothstep(0.30, 0.70, n2);
+    float wisps = smoothstep(0.47, 0.78, n2) * smoothstep(0.30, 0.67, n1);
+    // User's deep blue / indigo / purple palette with a restrained luminous crest.
+    // RGB values are display-space equivalents of the supplied hex colours.
+    vec3 color = mix(vec3(0.059, 0.102, 0.227), vec3(0.102, 0.102, 0.290), density);
+    color = mix(color, vec3(0.227, 0.165, 0.416), n1 * 0.6);
+    color = mix(color, vec3(0.38, 0.33, 0.65), wisps * 0.64);
+    float boundary = 1.0 - smoothstep(0.27, 0.83, length(p * vec2(1.05, 1.25)));
+    float alpha = density * 0.65 * edge * boundary * uFade;
+    return vec4(color, alpha);
+  }
+  #endif
+
   void main() {
     // Local coordinates in the same units as the original scanned model.
     vec2 p = (vUv - 0.5) * vec2(0.90, 0.55);
@@ -104,6 +156,15 @@ const AURA_FRAGMENT = /* glsl */ `
                + lotus * vec3(1.0, 0.58, 0.53);
     vec3 color = light / max(energy, 0.0001);
     float alpha = (1.0 - exp(-energy * 1.45)) * edge * uFade;
+    #ifdef FLOWING_MIST
+    // Straight-alpha source-over composition: existing golden rays and halo
+    // sit in front of the mist. No new geometry, texture or WebGL render pass.
+    vec4 atmosphere = flowingMist(vUv, edge);
+    float backAlpha = atmosphere.a * (1.0 - alpha);
+    float combinedAlpha = alpha + backAlpha;
+    color = (color * alpha + atmosphere.rgb * backAlpha) / max(combinedAlpha, 0.0001);
+    alpha = combinedAlpha;
+    #endif
     gl_FragColor = vec4(color, alpha);
   }
 `
@@ -216,7 +277,7 @@ function LotusFigure({ frame, invocation }: {
   const model = useRef<Group>(null)
   const auraMaterial = useRef<ShaderMaterial>(null)
   const auraUniforms = useMemo(() => ({
-    uTime: { value: 0 }, uFade: { value: 0 },
+    uTime: { value: 0 }, uFade: { value: 0 }, uMistTime: { value: 0 },
     uAura: { value: AURA_SETTINGS.aura }, uRays: { value: AURA_SETTINGS.rays },
     uViolet: { value: AURA_SETTINGS.violet }, uLotus: { value: AURA_SETTINGS.lotus },
     uRayCount: { value: AURA_SETTINGS.rayCount }, uShine: { value: RAY_SHINE },
@@ -224,6 +285,7 @@ function LotusFigure({ frame, invocation }: {
   const entry = useRef<ScrollTrigger | null>(null)
   const exit = useRef<ScrollTrigger | null>(null)
   const idleTime = useRef(0)
+  const mistTime = useRef(0)
   const hover = useRef(0)
   const hoverCenter = useRef(new Vector3()).current
   const painted = useRef(false)
@@ -340,6 +402,13 @@ function LotusFigure({ frame, invocation }: {
     if (AURA_ENABLED && auraMaterial.current) {
       auraMaterial.current.uniforms.uFade.value = fade
       auraMaterial.current.uniforms.uTime.value = reducedMotion ? 0 : idleTime.current
+      if (MIST_EXPERIMENT) {
+        if (!reducedMotion && fade > 0) {
+          mistTime.current += dt
+          invalidate()
+        }
+        auraMaterial.current.uniforms.uMistTime.value = reducedMotion ? 0 : mistTime.current
+      }
       lotusAuraGlow.value = AURA_SETTINGS.lotus * fade * (0.96 + 0.04 * inhale)
     }
     const glow = MathUtils.smootherstep(progress, 0.32, 1)
@@ -372,6 +441,7 @@ function LotusFigure({ frame, invocation }: {
           <shaderMaterial
             ref={auraMaterial}
             uniforms={auraUniforms}
+            defines={MIST_DEFINES}
             vertexShader={AURA_VERTEX}
             fragmentShader={AURA_FRAGMENT}
             transparent
