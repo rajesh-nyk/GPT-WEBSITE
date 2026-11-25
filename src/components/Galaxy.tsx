@@ -169,8 +169,6 @@ vec3 StarLayer(vec2 uv, vec2 radial, vec2 repelAt, float pushCells, float spread
       vec2 offset = vec2(float(x), float(y));
       vec2 si = id + offset;
       float seed = Hash21(si);
-      float size = fract(seed * 345.32);
-
       vec2 pad = vec2(tris(seed * 34.0 + uTime * uSpeed / 10.0), tris(seed * 38.0 + uTime * uSpeed / 30.0)) - 0.5;
       vec2 shift = vec2(0.0);
       float invReach = 1.0;
@@ -190,12 +188,16 @@ vec3 StarLayer(vec2 uv, vec2 radial, vec2 repelAt, float pushCells, float spread
       // Reject only that zero region, before the color, rays and twinkle work.
       float d2 = dot(local, local);
 #ifdef WARP
-      float along = dot(local, radial);
-      d2 = max(d2 - uSquash * along * along, 0.0);
+      if (uSquash > 0.0) {
+        float along = dot(local, radial);
+        d2 = max(d2 - uSquash * along * along, 0.0);
+      }
 #endif
       if (d2 * invReach * invReach >= 1.00001) continue;
-      float glossLocal = tri(uGloss / (PERIOD * seed + 1.0));
-      float flareSize = smoothstep(0.9, 1.0, size) * glossLocal;
+      float size = fract(seed * 345.32);
+      if (size == 0.0) continue;
+      float flareSize = 0.0;
+      if (size > 0.9) flareSize = smoothstep(0.9, 1.0, size) * tri(uGloss / (PERIOD * seed + 1.0));
 #ifdef PALETTE
       float pick = Hash21(si + 7.0) * float(uColorCount);
       vec3 base = uColors[int(min(floor(pick), float(uColorCount - 1)))];
@@ -240,14 +242,18 @@ void main() {
   }
   float radius = 0.16 + 0.04 * strength;
 
-  vec2 radial = length(uv) > 0.0001 ? normalize(uv) : vec2(1.0, 0.0);
+  vec2 radial = vec2(1.0, 0.0);
   float angle = uRotationAngle;
-  uv = mat2(cos(angle), -sin(angle), sin(angle), cos(angle)) * uv;
-  uv = mat2(uRotation.x, -uRotation.y, uRotation.y, uRotation.x) * uv;
-  radial = mat2(cos(angle), -sin(angle), sin(angle), cos(angle)) * radial;
-  radial = mat2(uRotation.x, -uRotation.y, uRotation.y, uRotation.x) * radial;
-  repelAt = mat2(cos(angle), -sin(angle), sin(angle), cos(angle)) * repelAt;
-  repelAt = mat2(uRotation.x, -uRotation.y, uRotation.y, uRotation.x) * repelAt;
+  mat2 turn = mat2(cos(angle), -sin(angle), sin(angle), cos(angle));
+  mat2 baseTurn = mat2(uRotation.x, -uRotation.y, uRotation.y, uRotation.x);
+#ifdef WARP
+  if (uSquash > 0.0) {
+    radial = length(uv) > 0.0001 ? normalize(uv) : vec2(1.0, 0.0);
+    radial = baseTurn * (turn * radial);
+  }
+#endif
+  uv = baseTurn * (turn * uv);
+  repelAt = baseTurn * (turn * repelAt);
 
   vec3 col = vec3(0.0);
   float layers = float(uLayers);
@@ -257,6 +263,7 @@ void main() {
     float depth = fract(i + uDepth);
     float scale = mix(20.0 * uDensity, 0.5 * uDensity, depth);
     float fade = depth * smoothstep(1.0, 0.9, depth);
+    if (fade == 0.0) continue;
     vec2 offset = vec2(i * 453.32);
     col += StarLayer(uv * scale + offset, radial, repelAt * scale + offset, push * scale, 1.0 / (scale * radius)) * fade;
   }
