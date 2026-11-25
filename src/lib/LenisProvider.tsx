@@ -192,12 +192,12 @@ export function LenisProvider({ children, paced = false }: { children: ReactNode
     const onKey = (event: KeyboardEvent) => {
       if (!paced || instance.isStopped || event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return
       if (event.target instanceof Element && event.target.closest('input,textarea,select,button,[contenteditable="true"]')) return
-      if (event.repeat) return
       const direction = event.key === 'ArrowDown' || event.key === 'PageDown' ? 1
         : event.key === 'ArrowUp' || event.key === 'PageUp' ? -1
         : event.key === ' ' ? (event.shiftKey ? -1 : 1) : 0
       if (!direction && event.key !== 'Home' && event.key !== 'End') return
       event.preventDefault()
+      if (event.repeat) return
       if (direction) stepChapter(direction)
       else {
         refreshStops()
