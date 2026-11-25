@@ -13,8 +13,8 @@ const HERO_DATES = [CEREMONIES.nirbandha, CEREMONIES.bahaghara, CEREMONIES.recep
  * the red glow deepening (governed speed, so it never jumps).
  *
  * Entrance, staged on the sunrise (heroFx.rise, ~0.5–3.6s): the sun climbs from the
- * horizon behind the wheel and the wheel catches its light; only then do the names
- * arrive (2.3s), followed by the ornament, the Odia names, place & year, and the cue.
+ * horizon behind the wheel and the wheel catches its light; during this rise the names
+ * arrive (1.2s), followed by the ornament, the Odia names, place & year, and the cue.
  *
  * Leaving: the complete chapter panel slides upward as one composition. The
  * text retains its position relative to the 3D artwork with no independent fades.
@@ -43,13 +43,13 @@ export function Hero({ nextId }: { nextId?: string }) {
           <h1 id="hero-title" className="sr-only">
             Rajesh &amp; Chinmayee
           </h1>
-          <div className="hero-reveal" style={{ animationDelay: '2.3s' }}>
+          <div className="hero-reveal" style={{ animationDelay: '1.2s' }}>
             <TechNames />
           </div>
         </div>
 
         <div data-fade-line>
-          <div aria-hidden className="hero-reveal hero-ornament" style={{ animationDelay: '2.6s' }}>
+          <div aria-hidden className="hero-reveal hero-ornament" style={{ animationDelay: '1.45s' }}>
             <span className="hero-ornament__rule" />
             <span className="hero-ornament__gem" />
             <span className="hero-ornament__rule hero-ornament__rule--r" />
@@ -57,14 +57,14 @@ export function Hero({ nextId }: { nextId?: string }) {
         </div>
 
         <div data-fade-line>
-          <p lang="or" className="hero-reveal hero-odia font-odia" style={{ animationDelay: '2.8s' }}>
+          <p lang="or" className="hero-reveal hero-odia font-odia" style={{ animationDelay: '1.65s' }}>
             ରାଜେଶ ଓ ଚିନ୍ମୟୀ
           </p>
         </div>
 
         <div data-fade-line>
           {/* The three celebration dates (hero option A, approved 22 Nov 2026). */}
-          <p className="hero-reveal hero-meta font-inscription" style={{ animationDelay: '3.05s' }}>
+          <p className="hero-reveal hero-meta font-inscription" style={{ animationDelay: '1.85s' }}>
             <span className="sr-only">Celebrations on 27 January, 26 February and 3 March 2027</span>
             {HERO_DATES.map((c) => (
               <Fragment key={c.id}>
@@ -87,7 +87,7 @@ export function Hero({ nextId }: { nextId?: string }) {
           aria-label="Scroll to the next section"
           className="hero-cue font-inscription"
         >
-          <span className="hero-reveal flex flex-col items-center gap-2.5" style={{ animationDelay: '3.5s' }}>
+          <span className="hero-reveal flex flex-col items-center gap-2.5" style={{ animationDelay: '2.1s' }}>
             <span className="scroll-label pl-[0.45em]">Scroll</span>
             <span aria-hidden className="relative block h-9 w-px overflow-hidden bg-gold/20">
               <span className="scroll-dot absolute top-0 left-0 block h-3 w-px bg-gold-light" />

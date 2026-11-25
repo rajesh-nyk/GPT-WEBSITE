@@ -962,17 +962,17 @@ export function PageTwoGanesha() {
             .mantra-ticker__separator { margin-inline-start: clamp(20px, 3vw, 60px); color: #d8b8ff; opacity: .7; font-size: .7em; }
             .mantra-ticker__edge {
               position: absolute; inset-inline: 0; height: 10px; overflow: hidden;
-              pointer-events: none; z-index: 2;
+              pointer-events: none; z-index: 2; opacity: .82;
             }
             .mantra-ticker__edge--top { top: 0; }
             .mantra-ticker__edge--bottom { bottom: 0; }
             .mantra-ticker__edge::before, .mantra-ticker__edge::after {
               content: ''; position: absolute; left: 0; width: 30%; pointer-events: none;
               transform: translate3d(-105%,0,0);
-              animation: mantra-edge-flow 6s linear infinite; animation-play-state: paused;
+              animation: mantra-edge-flow 8s linear infinite; animation-play-state: paused;
             }
             .mantra-ticker__edge::before {
-              height: 2px;
+              height: 1.5px;
               background: linear-gradient(90deg, transparent 0%, rgb(255 173 72 / .2) 18%, #ffd088 65%, #fff7da 80%, transparent 100%);
               filter: drop-shadow(0 0 3px #ffbe69);
             }
@@ -983,7 +983,7 @@ export function PageTwoGanesha() {
             }
             .mantra-ticker__edge--top::before, .mantra-ticker__edge--top::after { top: 1px; }
             .mantra-ticker__edge--bottom::before, .mantra-ticker__edge--bottom::after { bottom: 1px; }
-            .mantra-ticker__edge--bottom::before, .mantra-ticker__edge--bottom::after { animation-delay: -3s; }
+            .mantra-ticker__edge--bottom::before, .mantra-ticker__edge--bottom::after { animation-delay: -4s; }
             .mantra-ticker--en .mantra-ticker__edge::before, .mantra-ticker--en .mantra-ticker__edge::after { animation-direction: reverse; }
             .mantra-ticker-stage[data-revealed="true"] .mantra-ticker__edge::before,
             .mantra-ticker-stage[data-revealed="true"] .mantra-ticker__edge::after { animation-play-state: running; }
