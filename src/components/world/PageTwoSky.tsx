@@ -1,5 +1,6 @@
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
+import { gsap } from '../../lib/gsap'
 import { useReducedMotion } from '../../lib/useReducedMotion'
 import { SceneCanvas } from '../three/SceneCanvas'
 import { WorldBackdrop } from './WorldBackdrop'
@@ -40,12 +41,36 @@ function SkyScene() {
 /** Same procedural sky as the hero, without the sun or wheel. No bloom composer
  * is needed for the sky-only chapter; the canvas pauses off-screen. */
 export function PageTwoSky() {
+  const [active, setActive] = useState(false)
+  useEffect(() => {
+    let previous = false
+    const tick = () => {
+      const hero = document.getElementById('hero')
+      if (!hero) return
+      // The diagonal starts exactly outside the viewport; wake before the
+      // first visible pixels, and stop when returned to the hero.
+      const next = !document.hidden && window.scrollY > 0
+      if (next !== previous) {
+        previous = next
+        setActive(next)
+      }
+    }
+    tick()
+    gsap.ticker.add(tick)
+    document.addEventListener('visibilitychange', tick)
+    return () => {
+      gsap.ticker.remove(tick)
+      document.removeEventListener('visibilitychange', tick)
+    }
+  }, [])
   return (
     <div className="page-two-sky">
       <SceneCanvas
         label="Sunless night galaxy"
         camera={{ position: [0, 0, 6], fov: 35, near: 0.1, far: 50 }}
         effects={false}
+        active={active}
+        gl={{ antialias: false }}
       >
         <SkyScene />
       </SceneCanvas>

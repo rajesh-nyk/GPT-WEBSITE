@@ -24,6 +24,12 @@ export function SceneCanvas({ label, effects = true, active = true, children, gl
   const reducedMotion = useReducedMotion()
   const host = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(true)
+  const [tabVisible, setTabVisible] = useState(() => !document.hidden)
+  useEffect(() => {
+    const sync = () => setTabVisible(!document.hidden)
+    document.addEventListener('visibilitychange', sync)
+    return () => document.removeEventListener('visibilitychange', sync)
+  }, [])
 
   useEffect(() => {
     const el = host.current
@@ -40,7 +46,7 @@ export function SceneCanvas({ label, effects = true, active = true, children, gl
     return () => io.disconnect()
   }, [])
 
-  const frameloop = !visible || !active ? 'never' : reducedMotion ? 'demand' : 'always'
+  const frameloop = !visible || !active || !tabVisible ? 'never' : reducedMotion ? 'demand' : 'always'
 
   return (
     <div ref={host} style={{ width: '100%', height: '100%', ...style }}>

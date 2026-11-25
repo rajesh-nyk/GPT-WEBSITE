@@ -64,7 +64,7 @@ export function PageOneWorld() {
       <JourneyDirector reducedMotion={reducedMotion} directScroll />
       <WorldBackdrop continuous />
       <GalaxyStars reducedMotion={reducedMotion} constellation={tier !== 'low'} continuous />
-      <WorldLighting />
+      <WorldLighting heroOnly />
       <TravelingWheel pointer={pointer} reducedMotion={reducedMotion} anchorY={anchorY} pageTransition />
       <QualityEffects bloomRef={bloom} bloomIntensity={0.45} bloomThreshold={0.86} vignette={0.4} />
     </>

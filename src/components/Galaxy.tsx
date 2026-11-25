@@ -172,9 +172,32 @@ vec3 StarLayer(vec2 uv, vec2 radial, vec2 repelAt, float pushCells, float spread
       vec2 si = id + offset;
       float seed = Hash21(si);
       float size = fract(seed * 345.32);
+
+      vec2 pad = vec2(tris(seed * 34.0 + uTime * uSpeed / 10.0), tris(seed * 38.0 + uTime * uSpeed / 30.0)) - 0.5;
+      vec2 shift = vec2(0.0);
+      float invReach = 1.0;
+#ifdef REPEL
+      if (pushCells != 0.0) {
+        vec2 away = si + 0.5 + pad - repelAt;
+        float dist = length(away);
+        float q = dist * spread;
+        float cells = pushCells * exp(-q * q);
+        float moved = cells * inversesqrt(1.0 + cells * cells * 2.78);
+        shift = away * (moved / max(dist, 0.0001));
+        invReach = 1.0 / (1.0 - moved);
+      }
+#endif
+      vec2 local = gv - offset - pad - shift;
+      // Star() multiplies by a falloff that is exactly zero beyond its reach.
+      // Reject only that zero region, before the color, rays and twinkle work.
+      float d2 = dot(local, local);
+#ifdef WARP
+      float along = dot(local, radial);
+      d2 = max(d2 - uSquash * along * along, 0.0);
+#endif
+      if (d2 * invReach * invReach >= 1.00001) continue;
       float glossLocal = tri(uGloss / (PERIOD * seed + 1.0));
       float flareSize = smoothstep(0.9, 1.0, size) * glossLocal;
-
 #ifdef PALETTE
       float pick = Hash21(si + 7.0) * float(uColorCount);
       vec3 base = uColors[int(min(floor(pick), float(uColorCount - 1)))];
@@ -190,19 +213,7 @@ vec3 StarLayer(vec2 uv, vec2 radial, vec2 repelAt, float pushCells, float spread
       base = hsv2rgb(vec3(hue, sat, val));
 #endif
 
-      vec2 pad = vec2(tris(seed * 34.0 + uTime * uSpeed / 10.0), tris(seed * 38.0 + uTime * uSpeed / 30.0)) - 0.5;
-      vec2 shift = vec2(0.0);
-      float invReach = 1.0;
-#ifdef REPEL
-      vec2 away = si + 0.5 + pad - repelAt;
-      float dist = length(away);
-      float q = dist * spread;
-      float cells = pushCells * exp(-q * q);
-      float moved = cells * inversesqrt(1.0 + cells * cells * 2.78);
-      shift = away * (moved / max(dist, 0.0001));
-      invReach = 1.0 / (1.0 - moved);
-#endif
-      float star = Star(gv - offset - pad - shift, flareSize, radial, invReach);
+      float star = Star(local, flareSize, radial, invReach);
       float twinkle = trisn(uTime * uSpeed + seed * 6.2831) * 0.5 + 1.0;
       twinkle = mix(1.0, twinkle, uTwinkleIntensity);
       col += star * twinkle * size * base;

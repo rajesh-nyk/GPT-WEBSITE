@@ -16,7 +16,7 @@ import { templeAway } from './templeFx'
  * - Ganesha rim lights (behind both shoulders): build up as the figure forms, and
  *   intensify — the golden aura — when it's hovered.
  */
-export function WorldLighting() {
+export function WorldLighting({ heroOnly = false }: { heroOnly?: boolean } = {}) {
   const scene = useThree((s) => s.scene)
   const wheelLeft = useRef<DirectionalLight>(null)
   const wheelRight = useRef<DirectionalLight>(null)
@@ -59,8 +59,8 @@ export function WorldLighting() {
       <directionalLight ref={key} position={[2, 3, 4]} intensity={1.15} color="#fff0d0" />
       <directionalLight ref={wheelLeft} position={[-4, 1.5, -3]} intensity={2.4} color="#ffb84d" />
       <directionalLight ref={wheelRight} position={[4, -1, -3]} intensity={2} color="#ff9e3d" />
-      <directionalLight ref={ganLeft} position={[-4, 2, -3]} intensity={0} color="#ffbf5a" />
-      <directionalLight ref={ganRight} position={[4, 1, -3]} intensity={0} color="#ffa84a" />
+      {!heroOnly && <directionalLight ref={ganLeft} position={[-4, 2, -3]} intensity={0} color="#ffbf5a" />}
+      {!heroOnly && <directionalLight ref={ganRight} position={[4, 1, -3]} intensity={0} color="#ffa84a" />}
     </>
   )
 }
