@@ -22,11 +22,11 @@ const ENTRY_ANGLE = MathUtils.degToRad(-12)
 const EXIT_ANGLE = MathUtils.degToRad(28)
 const EXIT_ROTATION_RESPONSE = 16
 const PEAK_GLOW = 0.65
-// Opt-in only: the locked original scene is unchanged without aura=1.
-const AURA_EXPERIMENT = typeof window !== 'undefined' &&
-  new URLSearchParams(window.location.search).get('aura') === '1'
+// Approved aura is now the default. Use aura=0 for the original scene.
+const AURA_ENABLED = typeof window === 'undefined' ||
+  new URLSearchParams(window.location.search).get('aura') !== '0'
 const AURA_SETTINGS = { aura: 0.57, rays: 0.43, violet: 0.38, lotus: 0.27, rayCount: 48 } as const
-// Optional A/B comparison: aura=1&shine=0 restores the previous rays.
+// Optional A/B comparison: shine=0 restores the previous rays.
 const RAY_SHINE = typeof window !== 'undefined' &&
   new URLSearchParams(window.location.search).get('shine') !== '0' ? 1 : 0
 const lotusAuraGlow = { value: 0 }
@@ -117,7 +117,7 @@ export const ganeshaPosition = { sample: null as (() => Vector3 | null) | null }
 function gradePetals(material: LotusMesh['material']) {
   const opening = { value: 0 }
   petalBreath.set(material, opening)
-  material.customProgramCacheKey = () => AURA_EXPERIMENT ? 'page-two-lotus-blush-breath-aura' : 'page-two-lotus-blush-breath'
+  material.customProgramCacheKey = () => AURA_ENABLED ? 'page-two-lotus-blush-breath-aura' : 'page-two-lotus-blush-breath'
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uPetalBreath = opening
     shader.vertexShader = shader.vertexShader
@@ -133,7 +133,7 @@ function gradePetals(material: LotusMesh['material']) {
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>\nvarying vec3 vPetalPosition;\n${lotusGrade}`)
       .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb = lotusGrade(diffuseColor.rgb, vPetalPosition);')
-    if (AURA_EXPERIMENT) {
+    if (AURA_ENABLED) {
       shader.uniforms.uLotusAuraGlow = lotusAuraGlow
       shader.fragmentShader = shader.fragmentShader
         .replace('#include <common>', '#include <common>\nuniform float uLotusAuraGlow;')
@@ -321,7 +321,7 @@ function LotusFigure({ frame }: { frame: RefObject<HTMLDivElement | null> }) {
     ganeshaPose.uFigureStretch.value.set(bodyWidth, 1 + inhale * (0.024 + 0.062 * hover.current))
     const opening = petalBreath.get(petals.material)
     if (opening) opening.value = inhale * hover.current
-    if (AURA_EXPERIMENT && auraMaterial.current) {
+    if (AURA_ENABLED && auraMaterial.current) {
       // The aura follows the existing chapter motion and settles with the
       // sculpture; it never changes the scroll timeline or model geometry.
       const fade = MathUtils.smoothstep(progress, 0.35, 0.96)
@@ -351,7 +351,7 @@ function LotusFigure({ frame }: { frame: RefObject<HTMLDivElement | null> }) {
 
   return (
     <>
-      {AURA_EXPERIMENT && (
+      {AURA_ENABLED && (
         <mesh
           position={[0, (0.15 - LOTUS_PIVOT.y) * scale * auraPerspective, -auraDepth]}
           renderOrder={-1}
