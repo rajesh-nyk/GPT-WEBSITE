@@ -1,92 +1,12 @@
-import { useEffect, useRef } from 'react'
-import { gsap, ScrollTrigger } from '../../lib/gsap'
+import { useEffect, useMemo, useRef } from 'react'
+import { useFrame, useThree } from '@react-three/fiber'
+import { Data3DTexture, LinearFilter, RepeatWrapping, RGBAFormat, UnsignedByteType, ShaderMaterial, Scene, OrthographicCamera, Mesh, PlaneGeometry, WebGLRenderTarget, Vector2, Vector4, Color, GLSL3, NormalBlending, NoBlending } from 'three'
+import { ScrollTrigger } from '../../lib/gsap'
 import { useReducedMotion } from '../../lib/useReducedMotion'
+import { heroFx } from '../hero/fx'
+import { glowCenters } from './screenShapes'
 
-// Real 3D volume, not a billboard or a stretched 2D cloud texture. The
-// raymarch integrates optical density and light attenuation along each ray.
-const vertex = `#version 300 es
-precision highp float;
-const vec2 pos[3] = vec2[3](vec2(-1.,-1.),vec2(3.,-1.),vec2(-1.,3.));
-void main(){gl_Position=vec4(pos[gl_VertexID],0.,1.);}`
-const fragment = `#version 300 es
-precision highp float;
-precision highp sampler3D;
-uniform sampler3D uNoise;
-uniform vec2 uResolution;
-uniform float uProgress;
-uniform float uTime;
-out vec4 frag;
-const vec3 sun=vec3(-.58,.77,.27);
-
-float density(vec3 p){
-  vec3 q=p+vec3(uTime*.018,0.,uTime*.011);
-  // Vary the cloud floor and the heights of the rounded cumulus crowns.
-  float cover=texture(uNoise,vec3(q.x*.039,.17,q.z*.039)).r;
-  float floorY=-.8+cover*.8;
-  float topY=1.3+cover*5.4;
-  float h=(p.y-floorY)/(topY-floorY);
-  if(h<=0.||h>=1.)return 0.;
-  float profile=smoothstep(0.,.15,h)*(1.-smoothstep(.57,1.,h));
-  vec3 n=texture(uNoise,q*.085).rgb;
-  float mass=n.r*.72+n.g*.28;
-  float erode=texture(uNoise,q*.32).b;
-  float d=mass-(.61-.22*profile)-.12*(1.-erode);
-  return clamp(d*4.2,0.,1.)*profile;
-}
-float lightAt(vec3 p){
-  // Beer-Lambert transmittance from the sun through the cloud itself.
-  float tau=0.;
-  tau+=density(p+sun*.25)*.25;
-  tau+=density(p+sun*.85)*.60;
-  tau+=density(p+sun*1.9)*1.05;
-  tau+=density(p+sun*3.8)*1.9;
-  return exp(-tau*2.2);
-}
-void main(){
-  vec2 uv=gl_FragCoord.xy/uResolution;
-  vec2 xy=(gl_FragCoord.xy-.5*uResolution)/uResolution.y;
-  float p=uProgress;
-  float flight=smoothstep(0.,1.,p);
-  // Descend into the cloud bank, then climb out while advancing in depth.
-  vec3 ro=vec3(0.,5.4-2.9*sin(flight*2.30),-4.+flight*10.5);
-  vec3 rd=normalize(vec3(xy.x,xy.y-.36,1.12));
-  float mask=mix(1.-smoothstep(.09,.23,uv.y),1.,smoothstep(.04,.55,p));
-  if(mask<.002){frag=vec4(0.);return;}
-  float t0=0.,t1=25.;
-  if(abs(rd.y)>.0001){
-    float a=(-.9-ro.y)/rd.y,b=(6.8-ro.y)/rd.y;
-    t0=max(t0,min(a,b));t1=min(t1,max(a,b));
-  }else if(ro.y<-.9||ro.y>6.8){frag=vec4(0.);return;}
-  if(t1<=t0){frag=vec4(0.);return;}
-  float stepLen=clamp((t1-t0)/64.,.085,.42);
-  float jitter=fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(.06711056,.00583715))));
-  float t=t0+stepLen*jitter;
-  vec3 sum=vec3(0.);float trans=1.;
-  float scatter=.88+.25*pow(max(0.,dot(rd,sun)),6.);
-  for(int i=0;i<80;i++){
-    if(t>=t1||trans<.012)break;
-    vec3 point=ro+rd*t;
-    float d=density(point);
-    if(d>.006){
-      float direct=lightAt(point);
-      float a=1.-exp(-d*stepLen*2.8);
-      vec3 ambient=mix(vec3(.075,.093,.145),vec3(.24,.28,.38),clamp((point.y+1.)/5.5,0.,1.));
-      vec3 light=ambient+vec3(.63,.57,.53)*direct*scatter;
-      sum+=trans*a*light;
-      trans*=1.-a;
-    }
-    t+=stepLen;
-  }
-  float alpha=1.-trans;
-  if(alpha<.0001){frag=vec4(0.);return;}
-  vec3 color=pow(clamp(sum/alpha,0.,1.),vec3(.90));
-  alpha*=mask*mix(.62,1.,smoothstep(.08,.55,p));
-  // Premultiplied transparency lets the existing galaxy show through gaps.
-  frag=vec4(color*alpha,alpha);
-}`
-
-// Bake a tileable 3D turbulence texture once. This makes density lookups
-// much cheaper than recomputing multiple octaves of noise per ray step.
+// Shared, deterministic low-memory turbulence. No image assets or video.
 function noiseVolume(){
   const size=64, data=new Uint8Array(size*size*size*4)
   const hash=(x:number,y:number,z:number)=>{
@@ -119,99 +39,206 @@ function noiseVolume(){
   }
   return {size,data}
 }
-function makeRenderer(canvas:HTMLCanvasElement){
-  const gl=canvas.getContext('webgl2',{alpha:true,premultipliedAlpha:true,antialias:false,depth:false,stencil:false,powerPreference:'high-performance'})
-  if(!gl)return null
-  const program=gl.createProgram()
-  if(!program)return null
-  for(const [type,src] of [[gl.VERTEX_SHADER,vertex],[gl.FRAGMENT_SHADER,fragment]] as const){
-    const s=gl.createShader(type)
-    if(!s){gl.deleteProgram(program);return null}
-    gl.shaderSource(s,src);gl.compileShader(s)
-    if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){
-      console.error('[cloud] shader:',gl.getShaderInfoLog(s));gl.deleteShader(s);gl.deleteProgram(program);return null
-    }
-    gl.attachShader(program,s);gl.deleteShader(s)
-  }
-  gl.linkProgram(program)
-  if(!gl.getProgramParameter(program,gl.LINK_STATUS)){
-    console.error('[cloud] link:',gl.getProgramInfoLog(program));gl.deleteProgram(program);return null
-  }
-  gl.useProgram(program)
-  const tex=gl.createTexture()
-  const vao=gl.createVertexArray()
-  if(!tex||!vao){gl.deleteTexture(tex);gl.deleteVertexArray(vao);gl.deleteProgram(program);return null}
-  gl.bindVertexArray(vao)
-  gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_3D,tex)
-  const {size,data}=noiseVolume()
-  gl.texImage3D(gl.TEXTURE_3D,0,gl.RGBA8,size,size,size,0,gl.RGBA,gl.UNSIGNED_BYTE,data)
-  for(const axis of [gl.TEXTURE_WRAP_S,gl.TEXTURE_WRAP_T,gl.TEXTURE_WRAP_R])gl.texParameteri(gl.TEXTURE_3D,axis,gl.REPEAT)
-  gl.texParameteri(gl.TEXTURE_3D,gl.TEXTURE_MIN_FILTER,gl.LINEAR)
-  gl.texParameteri(gl.TEXTURE_3D,gl.TEXTURE_MAG_FILTER,gl.LINEAR)
-  const resolution=gl.getUniformLocation(program,'uResolution')
-  const progress=gl.getUniformLocation(program,'uProgress')
-  const time=gl.getUniformLocation(program,'uTime')
-  gl.uniform1i(gl.getUniformLocation(program,'uNoise'),0)
-  return {
-    draw(p:number,t:number){
-      if(gl.isContextLost())return
-      gl.viewport(0,0,canvas.width,canvas.height)
-      gl.uniform2f(resolution,canvas.width,canvas.height)
-      gl.uniform1f(progress,p);gl.uniform1f(time,t)
-      gl.drawArrays(gl.TRIANGLES,0,3)
-    },
-    dispose(){gl.deleteTexture(tex);gl.deleteVertexArray(vao);gl.deleteProgram(program)}
-  }
-}
 
-/** Shared cloud volume over both chapter panels. The cloud camera is driven by
- * actual scroll position, so forward/reverse motion uses the same 3D space. */
+let baked: ReturnType<typeof noiseVolume> | undefined
+function makeNoise(){
+  const {size,data}=baked ??= noiseVolume()
+  const tex=new Data3DTexture(data,size,size,size)
+  tex.format=RGBAFormat
+  tex.type=UnsignedByteType
+  tex.minFilter=tex.magFilter=LinearFilter
+  tex.wrapS=tex.wrapT=tex.wrapR=RepeatWrapping
+  tex.unpackAlignment=1
+  tex.needsUpdate=true
+  return tex
+}
+const quad=`
+  varying vec2 vUv;
+  void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}
+`
+const volume=`
+precision highp sampler3D;
+uniform sampler3D uNoise;
+uniform vec2 uBounds;
+uniform float uAspect,uProgress,uTime,uWheelLight;
+uniform vec2 uSunCenter;
+varying vec2 vUv;
+out vec4 cloudColor;
+const vec3 moon=vec3(-.55,.78,.30);
+
+// Separate near cumulus, mid-level billows and distant cirrus. Large-scale
+// weather and smaller erosion use the same 1MiB procedural 3D lookup.
+float density(vec3 p){
+  vec3 q=p+vec3(uTime*.023,0.,uTime*.012);
+  vec3 coarse=texture(uNoise,q*vec3(.048,.075,.048)).rgb;
+  float h=(p.y+.9)/6.7;
+  if(h<=0.||h>=1.)return 0.;
+  float profile=smoothstep(0.,.13,h)*(1.-smoothstep(.58+coarse.r*.22,1.,h));
+  float cover=smoothstep(.29,.62,coarse.r);
+  vec3 detail=texture(uNoise,q*.19+vec3(.23,.41,.07)).rgb;
+  float billow=coarse.r*.76+detail.r*.24;
+  float erosion=(1.-detail.b)*.09;
+  float cumulus=clamp((billow-.52+profile*.15-erosion)*5.5,0.,1.)*profile*cover;
+  // Thin mid-level wisps occupy real vertical/depth bands, not screen planes.
+  float middle=exp(-pow((p.y-3.7)*.85,2.))*smoothstep(.53,.73,detail.g)*.18;
+  float high=exp(-pow((p.y-5.1)*2.3,2.))*smoothstep(.56,.78,coarse.g)*.15;
+  return clamp(cumulus+middle+high,0.,1.);
+}
+float shadow(vec3 p,float local){
+  float tau=local*.20+density(p+moon*.48)*.48+density(p+moon*1.7)*1.2;
+  return exp(-tau*2.6);
+}
+void main(){
+  vec2 uv=vec2(vUv.x,mix(uBounds.x,uBounds.y,vUv.y));
+  float p=uProgress;
+  float flight=p*p*(3.-2.*p);
+  vec2 xy=(uv-.5)*vec2(uAspect,1.);
+  // Camera traverses real world-space depth. Both chapters sample this
+  // exact camera and field in viewport coordinates.
+  vec3 ro=vec3(.25*sin(flight*1.8),5.7-3.1*sin(flight*1.65),-5.+flight*13.);
+  vec3 rd=normalize(vec3(xy.x,xy.y-.32,1.12));
+  float mask=mix(1.-smoothstep(.09,.22,uv.y),1.,smoothstep(.05,.67,p));
+  if(mask<.002){cloudColor=vec4(0.);return;}
+  float t0=0.,t1=28.;
+  if(abs(rd.y)>.0001){
+    float a=(-.9-ro.y)/rd.y,b=(5.8-ro.y)/rd.y;
+    t0=max(t0,min(a,b));t1=min(t1,max(a,b));
+  }else if(ro.y<-.9||ro.y>5.8){cloudColor=vec4(0.);return;}
+  if(t1<=t0){cloudColor=vec4(0.);return;}
+  float stride=max(.11,(t1-t0)/48.);
+  // Stable screen-space jitter breaks up marching bands without frame flicker.
+  float jitter=fract(52.9829189*fract(dot(uv*vec2(911.,613.),vec2(.06711056,.00583715))));
+  float t=t0+jitter*stride;
+  vec3 sum=vec3(0.);float trans=1.;
+  float phase=.75+.45*pow(max(0.,dot(rd,moon)),4.);
+  float wheelHalo=exp(-length((uv-uSunCenter)*vec2(uAspect,1.))*3.4)*uWheelLight;
+  for(int i=0;i<48;i++){
+    if(t>=t1||trans<.017)break;
+    vec3 pos=ro+rd*t;
+    float d=density(pos);
+    if(d>.006){
+      float lit=shadow(pos,d);
+      float a=1.-exp(-d*stride*3.0);
+      float height=clamp((pos.y+.9)/6.7,0.,1.);
+      vec3 ambient=mix(vec3(.035,.055,.105),vec3(.19,.25,.39),height);
+      vec3 silver=vec3(.67,.76,.91)*lit*phase;
+      // Wheel's existing golden sun acts as a gentle warm atmospheric source.
+      vec3 gold=vec3(.58,.31,.09)*wheelHalo*(.22+.78*lit)*exp(-t*.045);
+      vec3 air=mix(ambient+silver+gold,vec3(.13,.16,.26),1.-exp(-t*.012));
+      sum+=trans*a*air;
+      trans*=1.-a;
+    }
+    t+=stride;
+  }
+  float alpha=1.-trans;
+  if(alpha<.0001){cloudColor=vec4(0.);return;}
+  // Store straight linear RGB with alpha in the small intermediate target.
+  cloudColor=vec4(sum/max(alpha,.0001),alpha*mask*mix(.48,1.,smoothstep(.05,.55,p)));
+}
+`
+const compositeVertex=`
+  varying vec2 vUv;
+  void main(){vUv=uv;gl_Position=vec4(position.xy,.9997,1.);}
+`
+const compositeFragment=`
+  uniform sampler2D uCloud;
+  uniform vec2 uBounds;
+  uniform vec2 uCanvasY;
+  varying vec2 vUv;
+  void main(){
+    float y=uCanvasY.x+vUv.y*uCanvasY.y;
+    if(y<uBounds.x||y>uBounds.y)discard;
+    vec4 c=texture2D(uCloud,vec2(vUv.x,(y-uBounds.x)/max(.0001,uBounds.y-uBounds.x)));
+    if(c.a<.002)discard;
+    gl_FragColor=c;
+    #include <colorspace_fragment>
+  }
+`
+
+/** Both existing R3F scenes use the same world-space cloud field, no third
+ * WebGL context. March only a reduced-resolution, visible vertical strip,
+ * then composite with the full-resolution sky/wheel and existing bloom. */
 export function CloudJourney(){
-  const host=useRef<HTMLDivElement>(null)
-  const canvasRef=useRef<HTMLCanvasElement>(null)
-  const reducedMotion=useReducedMotion()
+  const gl=useThree(s=>s.gl)
+  const reduced=useReducedMotion()
+  const geometry=useRef({top:0,height:0,hero:1})
+  const res=useMemo(()=>{
+    const noise=makeNoise()
+    const target=new WebGLRenderTarget(1,1,{depthBuffer:false,stencilBuffer:false,minFilter:LinearFilter,magFilter:LinearFilter})
+    const bounds=new Vector2(0,1)
+    const cloud=new ShaderMaterial({
+      glslVersion:GLSL3,vertexShader:quad.replace('varying','out'),
+      fragmentShader:volume.replace('varying','in'),
+      depthTest:false,depthWrite:false,blending:NoBlending,toneMapped:false,
+      uniforms:{uNoise:{value:noise},uBounds:{value:bounds},uAspect:{value:1},
+        uProgress:{value:0},uTime:{value:0},uWheelLight:{value:0},uSunCenter:{value:new Vector2(.5,.6)}}
+    })
+    const plane=new PlaneGeometry(2,2)
+    const pass=new Mesh(plane,cloud);pass.frustumCulled=false
+    const scene=new Scene();scene.add(pass)
+    const camera=new OrthographicCamera(-1,1,1,-1,0,1)
+    const material=new ShaderMaterial({
+      vertexShader:compositeVertex,fragmentShader:compositeFragment,
+      transparent:true,depthTest:true,depthWrite:false,blending:NormalBlending,toneMapped:false,
+      uniforms:{uCloud:{value:target.texture},uBounds:{value:bounds},uCanvasY:{value:new Vector2(0,1)}}
+    })
+    return {noise,target,bounds,cloud,plane,scene,camera,material,viewport:new Vector4(),scissor:new Vector4(),clear:new Color()}
+  },[])
+  const last=useRef({p:-1,lo:-1,hi:-1,w:0,h:0,time:-Infinity})
   useEffect(()=>{
-    const el=host.current,canvas=canvasRef.current,hero=document.getElementById('hero')
-    if(!el||!canvas||!hero)return
-    let renderer=makeRenderer(canvas)
-    let height=hero.offsetHeight,lastP=-1,lastDraw=-Infinity
-    let lost=false
-    const start=performance.now()
+    const hero=document.getElementById('hero')
+    const canvas=gl.domElement
     const measure=()=>{
-      height=hero.offsetHeight
-      // Cap the experimental cloud buffer only; all approved 3D canvases
-      // retain their original Ultra DPR and postprocessing.
-      const w=Math.max(1,el.clientWidth),h=Math.max(1,el.clientHeight)
-      const scale=Math.min(window.devicePixelRatio||1,1,960/Math.max(w,h))
-      canvas.width=Math.max(1,Math.round(w*scale))
-      canvas.height=Math.max(1,Math.round(h*scale))
-      lastP=-1
+      const r=canvas.getBoundingClientRect()
+      geometry.current={top:r.top+window.scrollY,height:r.height,hero:hero?.offsetHeight||window.innerHeight}
+      last.current.p=-1
     }
-    const tick=()=>{
-      if(!renderer||lost||document.hidden||height<=0)return
-      const now=performance.now(),p=Math.max(0,Math.min(1,window.scrollY/height))
-      const changed=p!==lastP
-      // During scroll the camera follows each frame. At rest, limit the
-      // slowly drifting volume to 30Hz and avoid all work in reduced motion.
-      if(!changed&&(reducedMotion||now-lastDraw<33))return
-      renderer.draw(p,reducedMotion?0:(now-start)/1000)
-      lastP=p;lastDraw=now;el.style.opacity='1'
-    }
-    const onLost=(event:Event)=>{event.preventDefault();lost=true;el.style.opacity='0'}
-    const onRestored=()=>{renderer=makeRenderer(canvas);lost=false;lastP=-1;tick()}
-    canvas.addEventListener('webglcontextlost',onLost)
-    canvas.addEventListener('webglcontextrestored',onRestored)
     const observer=new ResizeObserver(measure)
-    observer.observe(hero);observer.observe(el)
+    observer.observe(canvas);if(hero)observer.observe(hero)
     ScrollTrigger.addEventListener('refresh',measure)
-    measure();tick();gsap.ticker.add(tick)
+    measure()
     return ()=>{
-      gsap.ticker.remove(tick);observer.disconnect()
-      ScrollTrigger.removeEventListener('refresh',measure)
-      canvas.removeEventListener('webglcontextlost',onLost)
-      canvas.removeEventListener('webglcontextrestored',onRestored)
-      renderer?.dispose()
+      observer.disconnect();ScrollTrigger.removeEventListener('refresh',measure)
     }
-  },[reducedMotion])
-  return <div className="cloud-journey" ref={host} aria-hidden="true"><canvas ref={canvasRef} className="cloud-journey__volume" /></div>
+  },[gl])
+  useEffect(()=>()=>{res.target.dispose();res.noise.dispose();res.cloud.dispose();res.material.dispose();res.plane.dispose()},[res])
+
+  useFrame(()=>{
+    const g=geometry.current,vh=Math.max(1,window.innerHeight),vw=Math.max(1,window.innerWidth)
+    if(g.height<=0)return
+    const y=window.scrollY,p=Math.max(0,Math.min(1,y/g.hero))
+    const bottom=1-(g.top-y+g.height)/vh
+    const top=bottom+g.height/vh
+    const maskTop=.23+.77*Math.min(1,Math.max(0,(p-.05)/.62))
+    const lo=Math.max(0,bottom),hi=Math.min(1,top,p<.05?maskTop:1)
+    res.material.visible=hi-lo>.001
+    if(!res.material.visible)return
+    res.material.uniforms.uCanvasY.value.set(bottom,g.height/vh)
+    // Quarter-ish pixel workload compared with the existing Ultra canvases.
+    const factor=Math.min(.65,1050/vw)
+    const w=Math.max(1,Math.round(vw*factor)),h=Math.max(1,Math.round(vh*(hi-lo)*factor))
+    const time=performance.now()/1000
+    const old=last.current
+    if(p===old.p&&lo===old.lo&&hi===old.hi&&w===old.w&&h===old.h&&(reduced||time-old.time<1/24))return
+    if(w!==old.w||h!==old.h)res.target.setSize(w,h)
+    res.bounds.set(lo,hi)
+    const u=res.cloud.uniforms
+    u.uAspect.value=vw/vh;u.uProgress.value=p;u.uTime.value=reduced?0:time%3600
+    u.uWheelLight.value=(1-p)*heroFx.rise*(.75+.25*heroFx.breath)
+    u.uSunCenter.value.set(glowCenters.sun.x, bottom+glowCenters.sun.y*g.height/vh)
+    // Isolate the offscreen render from the existing scissor and composer state.
+    const previous=gl.getRenderTarget(),scissorTest=gl.getScissorTest(),alpha=gl.getClearAlpha(),autoClear=gl.autoClear
+    gl.getViewport(res.viewport);gl.getScissor(res.scissor);gl.getClearColor(res.clear)
+    try{
+      gl.setRenderTarget(res.target);gl.setScissorTest(false)
+      gl.setClearColor(0,0);gl.autoClear=true
+      gl.render(res.scene,res.camera)
+    }finally{
+      gl.setRenderTarget(previous);gl.setViewport(res.viewport);gl.setScissor(res.scissor)
+      gl.setScissorTest(scissorTest);gl.setClearColor(res.clear,alpha);gl.autoClear=autoClear
+    }
+    old.p=p;old.lo=lo;old.hi=hi;old.w=w;old.h=h;old.time=time
+  },-1)
+
+  return <mesh renderOrder={-997} frustumCulled={false} geometry={res.plane} material={res.material} />
 }
