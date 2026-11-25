@@ -565,13 +565,17 @@ function LotusFigure({ frame, invocation }: {
     cloudFade.progress = progress
     cloudFade.exit = exitFade
     // He condenses as page 2 arrives and thins away on exit.
-    // Slow (his ask): spread over most of the arrival, and never faster than about 4.5 s to
-    // form however fast the scroll moves (reversing may be quicker).
+    // Keep the paced condensation during arrival, but finish it with scroll as
+    // page 2 reaches center so the fully revealed figure and ticker stay synchronized.
     if (CLOUDS_ENABLED && !reducedMotion) {
       const target = MathUtils.smoothstep(progress, 0.08, 0.96) * MathUtils.smoothstep(exitFade, 0.0, 1.0)
       const step = (target > condense.value ? 0.22 : 0.8) * dt
       condense.value += MathUtils.clamp(target - condense.value, -step, step)
-      if (condense.value !== target) invalidate()
+      // Catch up smoothly over the last part of the arrival, not on an independent timer.
+      const centeredReveal = MathUtils.smootherstep(progress, 0.76, 0.995)
+        * MathUtils.smoothstep(exitFade, 0, 1)
+      condense.value = Math.max(condense.value, Math.min(target, centeredReveal))
+      if (Math.abs(condense.value - target) > 0.0001) invalidate()
     } else condense.value = 1
     if (invocation.current) {
       const el = invocation.current
@@ -588,8 +592,9 @@ function LotusFigure({ frame, invocation }: {
           el.style.setProperty('--sw', (1 - MathUtils.smoothstep(spreadFade, 0.25, 1)).toFixed(3))
         }
       } else {
-        // Wait for the actual figure condensation as well as scroll arrival.
-        const ready = reducedMotion || (progress >= 0.99 && condense.value >= 0.995 && departureProgress < 0.035)
+        // Arrival ScrollTrigger ends when page 2 reaches the viewport center.
+        // The final condensation now finishes at that same scroll position.
+        const ready = reducedMotion || (progress >= 0.995 && departureProgress < 0.035)
         const visible = ready ? 'true' : 'false'
         if (el.dataset.revealed !== visible) el.dataset.revealed = visible
       }
