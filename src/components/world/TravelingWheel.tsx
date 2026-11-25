@@ -91,11 +91,18 @@ export function TravelingWheel({
       g.scale.setScalar(scale)
       g.rotation.set(reducedMotion ? 0 : -pointer.y * MAX_TILT * idle, 0, 0)
       s.rotation.y = reducedMotion ? 0 : turn * Math.PI * 2
-      if (roll.current) roll.current.rotation.z = 0
+      // Face-on chariot rotation at rest, with the scroll-linked Y turn intact.
+      // Preserve accumulated axle angle as scrolling begins so there is no snap.
+      const ready = document.documentElement.hasAttribute('data-site-ready')
+      if (roll.current) {
+        if (reducedMotion) roll.current.rotation.z = 0
+        else if (ready) roll.current.rotation.z -= dt * Math.PI * 2 / 42 * idle * (1 - HOVER_SLOWDOWN * heroFx.hover)
+      }
       entrance.current = reducedMotion ? 1 : Math.min(1, entrance.current + dt / ENTRANCE_SECONDS)
       const alpha = reducedMotion ? 1 : 1 - (1 - entrance.current) ** 3
       g.visible = p < 0.999 && alpha > 0.004
-      wheelState.glow = g.visible ? alpha : 0
+      const livingGlow = reducedMotion ? 1 : 1 + .055 * Math.sin(heroFx.time * Math.PI * 2 / 7) * idle
+      wheelState.glow = g.visible ? alpha * livingGlow : 0
       wheelState.ahead = false
       fade.current ??= SolidFade.from(s, { occludes: true })
       fade.current?.set(alpha)
