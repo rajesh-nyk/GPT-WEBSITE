@@ -1861,15 +1861,57 @@ html.cinematic-scroll { touch-action: pan-x pinch-zoom; }
   pointer-events: none;
 }
 
-/* Violet glass over the sunless galaxy. The entire layered composition is
-   clipped by the approved diagonal wipe, including the glass reflections. */
+/* Dark optical glass: clear centre, curved-looking specular shoulders,
+   and a narrow dispersive bevel. Keep the original stars legible. */
 .page-two-sky, .page-glass { position: absolute; inset: 0; }
 .page-glass {
   background:
-    linear-gradient(155deg, rgb(23 13 53 / .36) 0%, rgb(73 33 138 / .28) 48%, rgb(120 44 194 / .36) 100%),
-    linear-gradient(130deg, rgb(230 211 255 / .075), transparent 36%, rgb(185 151 255 / .035) 74%, transparent);
-  -webkit-backdrop-filter: blur(1.5px) saturate(1.15);
-  backdrop-filter: blur(1.5px) saturate(1.15);
-  box-shadow: inset 0 1px 0 rgb(230 210 255 / .14);
+    radial-gradient(ellipse at 49% 48%, transparent 28%, rgb(13 7 29 / .12) 68%, rgb(1 0 5 / .65) 100%),
+    radial-gradient(ellipse 90% 18% at 50% 0%, rgb(226 215 255 / .10), transparent 85%),
+    radial-gradient(ellipse 80% 22% at 50% 100%, rgb(158 130 230 / .095), transparent 90%),
+    linear-gradient(155deg, rgb(23 13 53 / .11) 0%, rgb(73 33 138 / .07) 48%, rgb(120 44 194 / .13) 100%);
+  -webkit-backdrop-filter: saturate(1.12) contrast(1.06);
+  backdrop-filter: saturate(1.12) contrast(1.06);
   pointer-events: none;
+}
+.page-glass::before {
+  content: "";
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse 2.3% 72% at 0% 47%, rgb(212 218 255 / .16), transparent),
+    radial-gradient(ellipse 2.3% 72% at 100% 47%, rgb(222 216 255 / .13), transparent),
+    radial-gradient(ellipse 60% 3.2% at 50% 100%, rgb(220 211 255 / .10), transparent);
+  pointer-events: none;
+}
+/* Specular edge anchored at the left corner of the real wipe. The highlight
+   is brightest during the movement, and softens into a resting glass rim. */
+.page-glass-rim {
+  --rim-angle: 0rad;
+  --rim-width: 100%;
+  --rim-energy: 0;
+  position: absolute;
+  left: 0; top: var(--overhang);
+  width: var(--rim-width); height: 32px;
+  transform-origin: 0 0;
+  transform: rotate(var(--rim-angle));
+  background:
+    linear-gradient(to bottom, rgb(255 255 255 / .56) 0px, rgb(216 227 255 / .24) 1px, rgb(133 158 220 / .11) 3px, transparent 17px);
+  opacity: calc(.28 + var(--rim-energy) * .65);
+  pointer-events: none;
+}
+.page-glass-rim::before {
+  content: "";
+  position: absolute; inset: 0 0 auto; height: 7px;
+  background:
+    linear-gradient(to bottom, transparent, rgb(0 0 0 / .65)),
+    linear-gradient(90deg, transparent 5%, #94a6ff 25%, #b9fff5 40%, #fff6cf 51%, #f1b6bc 62%, #8b8ee8 76%, transparent 95%);
+  opacity: calc(var(--rim-energy) * .76);
+  filter: blur(.8px);
+}
+.page-glass-rim::after {
+  content: "";
+  position: absolute; inset: 0 0 auto; height: 24px;
+  background: radial-gradient(ellipse 45% 75% at 51% 0%, rgb(239 235 255 / .43), rgb(166 190 255 / .10) 42%, transparent 84%);
+  filter: blur(2px);
+  opacity: var(--rim-energy);
 }
