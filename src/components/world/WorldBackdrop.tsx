@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { Color, MathUtils, ShaderMaterial } from 'three'
+import { Color, MathUtils, ShaderMaterial, Vector2 } from 'three'
 import { heroFx } from '../hero/fx'
 import { CINE3, EXIT, ganeshaFx, LOTUS } from '../ganesha/fx'
 import { journey } from './journey'
@@ -32,9 +32,12 @@ const PAL = { warm: '#1c1018', core: '#b08a5c', rayBase: '#C9A46A', rayAccent: '
 
 const vertex = /* glsl */ `
   varying vec2 vUv;
+  uniform vec2 uClipTop;
   void main() {
-    vUv = uv;
-    gl_Position = vec4(position.xy, 0.9999, 1.0);
+    vec2 p = position.xy;
+    if (p.y > 0.0) p.y = mix(uClipTop.x, uClipTop.y, step(0.0, p.x));
+    vUv = vec2(uv.x, p.y * 0.5 + 0.5);
+    gl_Position = vec4(p, 0.9999, 1.0);
   }
 `
 
@@ -209,7 +212,7 @@ const fragment = /* glsl */ `
 /** Hover is fully on when the pointer is there; the 5% itself is HOVER_GAIN in the shader. */
 const RAY_HOVER = 1
 
-export function WorldBackdrop({ continuous = false, sunless = false }: { continuous?: boolean; sunless?: boolean } = {}) {
+export function WorldBackdrop({ continuous = false, sunless = false, clipTop }: { continuous?: boolean; sunless?: boolean; clipTop?: Vector2 } = {}) {
   const size = useThree((s) => s.size)
   const material = useMemo(
     () =>
@@ -219,6 +222,7 @@ export function WorldBackdrop({ continuous = false, sunless = false }: { continu
         depthWrite: false,
         depthTest: false,
         uniforms: {
+          uClipTop: { value: clipTop ?? new Vector2(1, 1) },
           uAspect: { value: 1 },
           uT: { value: 0 },
           uBreath: { value: 0.75 },
@@ -258,7 +262,7 @@ export function WorldBackdrop({ continuous = false, sunless = false }: { continu
           uRayHover: { value: 0 },
         },
       }),
-    [sunless],
+    [sunless, clipTop],
   )
   material.uniforms.uAspect.value = size.width / size.height
 
@@ -273,7 +277,8 @@ export function WorldBackdrop({ continuous = false, sunless = false }: { continu
     rp.on += (on - rp.on) * k
     rp.x += ((on ? pointer.clientX / size.width : 0.5) - rp.x) * k
     rp.y += ((on ? 1 - pointer.clientY / size.height : 0.5) - rp.y) * k
-    u.uRayMouse.value = [rp.x, rp.y]
+    u.uRayMouse.value[0] = rp.x
+    u.uRayMouse.value[1] = rp.y
     u.uRayHover.value = Math.min(1, rp.on) * RAY_HOVER
     u.uT.value = continuous ? 0 : journey.t
     u.uBreath.value = heroFx.breath
