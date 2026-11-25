@@ -18,25 +18,26 @@ export function SlicedPageTwo() {
     const panel = layer.current
     if (!root.current || !hero || !panel || reducedMotion) return
     let amplitude = 0
+    let clearance = 0
+    let width = 1
     const update = (trigger: ScrollTrigger) => {
       const p = Math.max(0, Math.min(1, trigger.progress))
       const envelope = Math.sin(Math.PI * p) ** 0.8
       const lead = amplitude
-      const clearance = Math.min(40, Math.max(0, Math.min(window.innerHeight * .28, window.innerWidth * .20) - lead - 2))
       // At entry the right corner touches the viewport bottom. At arrival
       // the left corner clears the top, including the optical rim.
       const shift = lead * (1 - p) - clearance * p
       panel.style.setProperty('--edge-shift', shift.toFixed(2) + 'px')
-      panel.style.setProperty('--lead', lead.toFixed(2) + 'px')
-      // The optical bevel follows the exact diagonal, without tilting the scene.
-      const width = Math.max(1, panel.clientWidth)
-      const angle = -Math.atan2(lead, width)
-      rim.current?.style.setProperty('--rim-angle', angle + 'rad')
-      rim.current?.style.setProperty('--rim-width', Math.hypot(width, lead) + 'px')
       rim.current?.style.setProperty('--rim-energy', String(Math.min(1, envelope * 1.8)))
     }
     const refresh = (trigger: ScrollTrigger) => {
       amplitude = Math.min(window.innerHeight * .23, window.innerWidth * .16, Math.max(0, Math.min(window.innerHeight * .28, window.innerWidth * .20) - 42))
+      clearance = Math.min(40, Math.max(0, Math.min(window.innerHeight * .28, window.innerWidth * .20) - amplitude - 2))
+      width = Math.max(1, panel.clientWidth)
+      // The diagonal geometry is invariant between resizes. Only its position moves.
+      panel.style.setProperty('--lead', amplitude.toFixed(2) + 'px')
+      rim.current?.style.setProperty('--rim-angle', -Math.atan2(amplitude, width) + 'rad')
+      rim.current?.style.setProperty('--rim-width', Math.hypot(width, amplitude) + 'px')
       update(trigger)
     }
     const trigger = ScrollTrigger.create({

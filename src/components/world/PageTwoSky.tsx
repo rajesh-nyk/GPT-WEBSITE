@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useFrame } from '@react-three/fiber'
+import { useFrame, useThree } from '@react-three/fiber'
 import { gsap } from '../../lib/gsap'
 import { useReducedMotion } from '../../lib/useReducedMotion'
 import { SceneCanvas } from '../three/SceneCanvas'
@@ -9,8 +9,26 @@ import { GalaxyStars } from './GalaxyStars'
 function SkyScene() {
   const reducedMotion = useReducedMotion()
   const stats = useRef({ frames: 0, elapsed: 0 })
-  useFrame((_, delta) => {
-    // Page 1 owns the HUD while visible; Page 2 takes over at its resting stop.
+  const gl = useThree((s) => s.gl)
+  useEffect(() => () => { gl.setScissorTest(false) }, [gl])
+  useFrame(({ size }, delta) => {
+    // Keep full-size projection and pixel density, but shade only rows inside
+    // the viewport. The canvas is opaque and has no postprocessing, so pixels
+    // outside this rectangle cannot contribute to the visible image.
+    // The CSS diagonal clip remains authoritative (scissor is conservative).
+    const rect = gl.domElement.getBoundingClientRect()
+    if (!reducedMotion && rect.height > 0 && size.height > 0) {
+      const ratio = size.height / rect.height
+      const top = Math.max(0, Math.floor(-rect.top * ratio) - 2)
+      const bottom = Math.min(size.height, Math.ceil((window.innerHeight - rect.top) * ratio) + 2)
+      const height = Math.max(0, bottom - top)
+      if (height > 0) {
+        gl.setScissor(0, size.height - bottom, size.width, height)
+        gl.setScissorTest(true)
+      } else gl.setScissorTest(false)
+    } else gl.setScissorTest(false)
+    // The section begins after the hero, and the canvas includes its overhang.
+    // Read the hero only when needed for the HUD; do not change its ownership.
     const hero = document.getElementById('hero')
     if (!hero || hero.getBoundingClientRect().bottom > 0 || delta > .5) {
       stats.current = { frames: 0, elapsed: 0 }
