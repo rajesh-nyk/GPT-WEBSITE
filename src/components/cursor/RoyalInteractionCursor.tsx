@@ -61,8 +61,13 @@ export function RoyalInteractionCursor() {
         html.classList.add('has-royal-cursor')
       }
     }
+    let scrollFrame = 0
     const scroll = () => {
-      if (visible) hover(document.elementFromPoint(x, y))
+      if (!visible || scrollFrame) return
+      scrollFrame = requestAnimationFrame(() => {
+        scrollFrame = 0
+        if (visible) hover(document.elementFromPoint(x, y))
+      })
     }
     const down = (e: PointerEvent) => {
       if (!visible || e.pointerType !== 'mouse' || e.button !== 0 || !flash.current) return
@@ -81,6 +86,7 @@ export function RoyalInteractionCursor() {
     media.addEventListener('change', hide)
     return () => {
       hide()
+      if (scrollFrame) cancelAnimationFrame(scrollFrame)
       xTo.tween.kill()
       yTo.tween.kill()
       window.removeEventListener('pointermove', move)
