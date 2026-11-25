@@ -466,6 +466,8 @@ function LotusFigure({ frame, invocation }: {
   const idleTime = useRef(0)
   const mistTime = useRef(0)
   const painted = useRef(false)
+  const tickerReveal = useRef(0)
+  const tickerArmed = useRef(false)
   const haloPoint = useRef(new Vector2()).current
   const facePoint = useRef(new Vector3()).current
   const modelPoint = useRef(new Vector3()).current
@@ -592,10 +594,24 @@ function LotusFigure({ frame, invocation }: {
           el.style.setProperty('--sw', (1 - MathUtils.smoothstep(spreadFade, 0.25, 1)).toFixed(3))
         }
       } else {
-        // Arrival ScrollTrigger ends when page 2 reaches the viewport center.
-        // The final condensation now finishes at that same scroll position.
-        const ready = reducedMotion || (progress >= 0.995 && departureProgress < 0.035)
-        const visible = ready ? 'true' : 'false'
+        // First entrance still begins at centered arrival. Once shown, the
+        // same scroll envelope scrubs the exit and any reversal without a CSS timer.
+        const envelope = MathUtils.smootherstep(progress, 0.88, 0.995)
+          * (1 - MathUtils.smootherstep(departureProgress, 0, 0.13))
+        if (progress >= 0.995 && departureProgress < 0.035) tickerArmed.current = true
+        if (envelope <= 0.001) tickerArmed.current = false
+        const target = reducedMotion ? 1 : tickerArmed.current ? envelope : 0
+        const current = tickerReveal.current
+        const damped = reducedMotion ? target : MathUtils.damp(current, target, target > current ? 6 : 24, dt)
+        const next = Math.abs(damped - target) < 0.002 ? target : damped
+        tickerReveal.current = next
+        if (next !== target) invalidate()
+        const key = next.toFixed(3)
+        if (el.style.getPropertyValue('--mantra-ticker-reveal') !== key) {
+          el.style.setProperty('--mantra-ticker-reveal', key)
+        }
+        // Keep the horizontal text moving throughout the exit; pause only offscreen.
+        const visible = next > 0.001 ? 'true' : 'false'
         if (el.dataset.revealed !== visible) el.dataset.revealed = visible
       }
     }
@@ -750,14 +766,13 @@ export function PageTwoGanesha() {
               display: flex; align-items: center;
               padding-block: clamp(6px, 1.1dvh, 12px);
               background: linear-gradient(90deg, transparent, rgb(35 15 58 / .22) 20%, rgb(35 15 58 / .22) 80%, transparent);
-              opacity: 0; visibility: hidden;
-              transition: opacity .65s ease, transform .8s cubic-bezier(.2,.8,.2,1), visibility 0s linear .8s;
+              opacity: var(--mantra-ticker-reveal, 0); visibility: hidden;
               -webkit-mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
               mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
             }
-            .mantra-ticker--or { top: max(1.5dvh, env(safe-area-inset-top, 0px)); transform: translateY(-110%); color: #fff1cc; font: 650 clamp(1.25rem, 2.65vw, 2.2rem)/1.35 var(--font-odia); }
-            .mantra-ticker--en { bottom: max(1.5dvh, env(safe-area-inset-bottom, 0px)); transform: translateY(110%); color: #ffe8bd; font: 650 clamp(.83rem, 1.25vw, 1.12rem)/1.45 var(--font-inscription); letter-spacing: .09em; text-transform: uppercase; }
-            .mantra-ticker-stage[data-revealed="true"] .mantra-ticker { opacity: 1; visibility: visible; transform: translateY(0); transition-delay: 0s; }
+            .mantra-ticker--or { top: max(1.5dvh, env(safe-area-inset-top, 0px)); transform: translateY(calc(-110% * (1 - var(--mantra-ticker-reveal, 0)))); color: #fff1cc; font: 650 clamp(1.25rem, 2.65vw, 2.2rem)/1.35 var(--font-odia); }
+            .mantra-ticker--en { bottom: max(1.5dvh, env(safe-area-inset-bottom, 0px)); transform: translateY(calc(110% * (1 - var(--mantra-ticker-reveal, 0)))); color: #ffe8bd; font: 650 clamp(.83rem, 1.25vw, 1.12rem)/1.45 var(--font-inscription); letter-spacing: .09em; text-transform: uppercase; }
+            .mantra-ticker-stage[data-revealed="true"] .mantra-ticker { visibility: visible; }
             .mantra-ticker__track { display: flex; width: max-content; flex: none; animation: mantra-ticker-scroll 26s linear infinite; animation-play-state: paused; }
             .mantra-ticker-stage[data-revealed="true"] .mantra-ticker__track { animation-play-state: running; }
             .mantra-ticker__group { display: flex; align-items: center; justify-content: space-around; min-width: 100vw; flex: none; }
