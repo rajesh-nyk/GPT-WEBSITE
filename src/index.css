@@ -61,6 +61,22 @@
 html {
   background: var(--color-ink);
   color: var(--color-gold-light);
+  /* Preserve native vertical document scrolling for Lenis/ScrollTrigger.
+     Suppress accidental horizontal overflow and hide browser scrollbar chrome. */
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+html::-webkit-scrollbar {
+  display: none;
+}
+body {
+  overflow-x: clip;
+}
+#root > main {
+  /* Clip only the sideways overflow from the diagonal optical rim.
+     Vertical overhang remains visible throughout the chapter transition. */
+  overflow-x: clip;
+  overflow-y: visible;
 }
 
 /* Text stays selectable everywhere. Opt out only on specific decorative, non-text
