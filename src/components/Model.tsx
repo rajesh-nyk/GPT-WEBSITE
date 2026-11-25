@@ -32,6 +32,8 @@ export type ModelProps = GroupProps & {
   fallback?: ReactNode
   /** Shown if the file is missing or fails to parse. Default: nothing. */
   errorFallback?: ReactNode
+  /** Scene work that can start once this model has loaded. */
+  children?: ReactNode
   castShadow?: boolean
   receiveShadow?: boolean
   /**
@@ -55,6 +57,7 @@ export function Model({
   src,
   fallback = null,
   errorFallback = null,
+  children,
   castShadow = true,
   receiveShadow = true,
   customize,
@@ -72,6 +75,7 @@ export function Model({
           receiveShadow={receiveShadow}
           {...groupProps}
         />
+        {children}
       </Suspense>
     </ModelErrorBoundary>
   )

@@ -13,6 +13,7 @@ export const pointer = {
   clientY: -1,
   /** Has the pointer moved over the page yet? (false until first move, or after leaving) */
   active: false,
+  type: '',
   /** Normalised -1..1, x right, y up. */
   ndc: new Vector2(),
 }
@@ -24,6 +25,7 @@ if (typeof window !== 'undefined') {
       pointer.clientX = e.clientX
       pointer.clientY = e.clientY
       pointer.active = true
+      pointer.type = e.pointerType
       pointer.ndc.set((e.clientX / window.innerWidth) * 2 - 1, -((e.clientY / window.innerHeight) * 2 - 1))
     },
     { passive: true },

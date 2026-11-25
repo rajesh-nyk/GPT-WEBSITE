@@ -11,6 +11,8 @@ type Props = Omit<CanvasProps, 'dpr' | 'shadows' | 'frameloop'> & {
   effects?: boolean | QualityEffectsProps
   /** false = stop rendering (keeps the last frame), e.g. once a scene has faded to dark. */
   active?: boolean
+  /** Render only when the scene changes. */
+  still?: boolean
 }
 
 /**
@@ -19,7 +21,7 @@ type Props = Omit<CanvasProps, 'dpr' | 'shadows' | 'frameloop'> & {
  * - stops rendering entirely while the canvas is scrolled out of view,
  * - with prefers-reduced-motion renders on demand only (a still frame).
  */
-export function SceneCanvas({ label, effects = true, active = true, children, gl, style, ...props }: Props) {
+export function SceneCanvas({ label, effects = true, active = true, still = false, children, gl, style, ...props }: Props) {
   const quality = useQuality()
   const reducedMotion = useReducedMotion()
   const host = useRef<HTMLDivElement>(null)
@@ -46,7 +48,7 @@ export function SceneCanvas({ label, effects = true, active = true, children, gl
     return () => io.disconnect()
   }, [])
 
-  const frameloop = !visible || !active || !tabVisible ? 'never' : reducedMotion ? 'demand' : 'always'
+  const frameloop = !visible || !active || !tabVisible ? 'never' : still || reducedMotion ? 'demand' : 'always'
 
   return (
     <div ref={host} style={{ width: '100%', height: '100%', ...style }}>

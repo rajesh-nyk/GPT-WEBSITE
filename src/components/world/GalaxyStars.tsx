@@ -1,10 +1,11 @@
 import { useEffect, useMemo } from 'react'
 import { gsap } from '../../lib/gsap'
-import { useFrame } from '@react-three/fiber'
+import { useFrame, useThree } from '@react-three/fiber'
 import { AdditiveBlending, MathUtils, ShaderMaterial, Vector2, Vector3 } from 'three'
 import { CINE3, LOTUS } from '../ganesha/fx'
 import { journey } from './journey'
 import { GALAXY_FRAGMENT } from '../Galaxy'
+import { createGalaxyPass, galaxyResolve } from './galaxyPass'
 import { LivingConstellation } from './LivingConstellation'
 
 /**
@@ -79,12 +80,14 @@ const fragment =
 /** How far the stars slide left during the page 1 exit, in screen widths. */
 const STAR_DRIFT = 0.25
 
-export function GalaxyStars({ reducedMotion, constellation = false, continuous = false, skipIntro = false, clipTop }: { reducedMotion: boolean; constellation?: boolean; continuous?: boolean; skipIntro?: boolean; clipTop?: Vector2 }) {
+export function GalaxyStars({ reducedMotion, constellation = false, continuous = false, skipIntro = false, clipTop, clipHero = false }: { reducedMotion: boolean; constellation?: boolean; continuous?: boolean; skipIntro?: boolean; clipTop?: Vector2; clipHero?: boolean }) {
+  const gl = useThree((state) => state.gl)
+  const rasterize = gl.extensions.has('EXT_color_buffer_float')
   const material = useMemo(
     () =>
       new ShaderMaterial({
         vertexShader: vertex,
-        fragmentShader: fragment,
+        fragmentShader: rasterize ? galaxyResolve : fragment,
         transparent: true,
         premultipliedAlpha: true,
         // Stars only ADD light: they never darken the sky behind them (no black dots
@@ -125,8 +128,14 @@ export function GalaxyStars({ reducedMotion, constellation = false, continuous =
           uOpacity: { value: STAR.opacity },
         },
       }),
-    [skipIntro, clipTop],
+    [skipIntro, clipTop, rasterize],
   )
+  const pass = useMemo(() => rasterize ? createGalaxyPass(material.uniforms) : null, [rasterize, material])
+  useEffect(() => {
+    if (!pass) return
+    void pass.compile(gl).catch(() => { /* The first draw can compile it instead. */ })
+    return () => pass.dispose()
+  }, [gl, pass])
 
   // Warp boost (click / intro) and intro progress, as in Galaxy.
   const fx = useMemo(() => ({ boost: 0, depth: 0, reveal: STAR.intro && !reducedMotion && !skipIntro ? 0 : 1 }), [reducedMotion, skipIntro])
@@ -211,6 +220,18 @@ export function GalaxyStars({ reducedMotion, constellation = false, continuous =
     }
     state.gl.getDrawingBufferSize(buffer)
     u.uResolution.value.copy(buffer)
+    let visibleRows = buffer.y
+    if (clipHero && state.size.height > 0) {
+      // This canvas scrolls up with page one. Stars are below bloom threshold,
+      // so clipped rows cannot affect any of the visible hero pixels.
+      const visible = MathUtils.clamp((state.size.height - window.scrollY + 2) / state.size.height, 0, 1)
+      visibleRows = Math.ceil(buffer.y * visible)
+      u.uClipTop.value.setScalar(2 * visibleRows / buffer.y - 1)
+    }
+    if (pass) {
+      u.uStars ??= { value: pass.texture }
+      pass.render(state.gl, buffer.x, buffer.y, visibleRows)
+    }
 
   })
 

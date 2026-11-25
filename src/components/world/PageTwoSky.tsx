@@ -3,12 +3,14 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { Vector2 } from 'three'
 import { gsap, ScrollTrigger } from '../../lib/gsap'
 import { useReducedMotion } from '../../lib/useReducedMotion'
+import { Prewarm } from '../three/Prewarm'
 import { SceneCanvas } from '../three/SceneCanvas'
 import { WorldBackdrop } from './WorldBackdrop'
 import { GalaxyStars } from './GalaxyStars'
 
 // CSS wipe publishes its exact local geometry; no layout read is needed per frame.
 export const skyWipe = { shift: 0, lead: 0 }
+export const pageTwoExit = { offset: 0, visibleBottom: Infinity }
 const skyClipTop = new Vector2(1, 1)
 
 function SkyScene() {
@@ -22,7 +24,8 @@ function SkyScene() {
     const measure = () => {
       const rect = canvas.getBoundingClientRect()
       const y = window.scrollY
-      geometry.current = { top: rect.top + y, height: rect.height, heroBottom: hero ? hero.getBoundingClientRect().bottom + y : Infinity }
+      const heroBottom = hero ? hero.getBoundingClientRect().bottom + y : Infinity
+      geometry.current = { top: rect.top + y - pageTwoExit.offset, height: rect.height, heroBottom }
     }
     const observer = new ResizeObserver(measure)
     observer.observe(canvas)
@@ -53,14 +56,13 @@ function SkyScene() {
       if (Number.isFinite(overhang)) skyClipTop.set(1 - 2 * left / measured.height, 1 - 2 * right / measured.height)
       else skyClipTop.set(1, 1)
       const ratio = size.height / measured.height
-      const rectTop = measured.top - y
+      const rectTop = measured.top - y + pageTwoExit.offset
       const top = Math.max(0, Math.floor(-rectTop * ratio) - 2)
-      const bottom = Math.min(size.height, Math.ceil((window.innerHeight - rectTop) * ratio) + 2)
+      const visibleBottom = Math.min(window.innerHeight, pageTwoExit.visibleBottom)
+      const bottom = Math.min(size.height, Math.ceil((visibleBottom - rectTop) * ratio) + 2)
       const height = Math.max(0, bottom - top)
-      if (height > 0) {
-        gl.setScissor(0, size.height - bottom, size.width, height)
-        gl.setScissorTest(true)
-      } else gl.setScissorTest(false)
+      gl.setScissor(0, size.height - bottom, size.width, height)
+      gl.setScissorTest(true)
     } else {
       gl.setScissorTest(false)
       skyClipTop.set(1, 1)
@@ -89,6 +91,7 @@ function SkyScene() {
     <>
       <WorldBackdrop continuous sunless clipTop={skyClipTop} />
       <GalaxyStars reducedMotion={reducedMotion} continuous skipIntro clipTop={skyClipTop} />
+      <Prewarm models={[]} />
     </>
   )
 }

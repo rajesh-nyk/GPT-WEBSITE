@@ -39,6 +39,8 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js'
 import { LOTUS_H, LOTUS_PIVOT, LOTUS_SCALE, LOTUS_WORLD_CENTER, worldToLotus } from './layout'
+import { lotusGrade } from './appearance'
+import { splitByPart } from './parts'
 import { LightOrb } from './LightOrb'
 import { DiveStars } from './DiveStars'
 import { makeGrainPass } from './grainPass'
@@ -268,7 +270,7 @@ export class LotusScene {
     this.patch(ganDark, 2)
     // Split the triangles once (every triangle lies in one texture piece, so one part): each
     // mesh then draws only its own half — no per-pixel discards, half the vertex work.
-    const [lotusGeo, ganGeo] = splitByPart(geo)
+    const [lotusGeo, ganGeo] = splitByPart(geo, geo.getAttribute('aPart') as BufferAttribute)
     this.lotus = new Mesh(lotusGeo, lotusMat)
     this.gan = new Mesh(ganGeo, ganMat)
     this.ganLit = ganMat
@@ -675,26 +677,6 @@ export class LotusScene {
   }
 }
 
-/** Two geometries sharing one set of vertex data (uploaded once), each with its own triangles. */
-function splitByPart(geo: BufferGeometry): [BufferGeometry, BufferGeometry] {
-  const part = geo.getAttribute('aPart') as BufferAttribute
-  const idx = geo.getIndex()!.array
-  const lotusIdx: number[] = []
-  const ganIdx: number[] = []
-  for (let i = 0; i < idx.length; i += 3) {
-    const into = part.getX(idx[i]) > 0.5 ? ganIdx : lotusIdx
-    into.push(idx[i], idx[i + 1], idx[i + 2])
-  }
-  const make = (list: number[]) => {
-    const g = new BufferGeometry()
-    for (const name of ['position', 'normal', 'uv']) g.setAttribute(name, geo.getAttribute(name))
-    g.setIndex(list)
-    g.computeBoundingSphere()
-    return g
-  }
-  return [make(lotusIdx), make(ganIdx)]
-}
-
 // ---- shader pieces (model units) ---------------------------------------------------------
 
 /** Petals breathe: a slow wave round the flower plus a light flutter at the tips; zero where
@@ -739,13 +721,7 @@ const GANESHA_MOTION = /* glsl */ `
 const FRAGMENT_COMMON = /* glsl */ `
   varying vec3 vL; uniform float uGlow, uTime;
   uniform float uBlink; uniform vec3 uEyeL, uEyeR, uNL, uNR; uniform vec2 uLidL, uLidR, uEyeSize;
-  // cream heart, blush-pink tips, texture detail kept
-  vec3 lotusGrade(vec3 c) {
-    float lum = dot(c, vec3(0.299, 0.587, 0.114));
-    float tip = smoothstep(0.07, 0.19, length(vL.xz)) * 0.6 + smoothstep(0.03, 0.13, vL.y) * 0.4;
-    vec3 tint = mix(vec3(1.0, 0.86, 0.85), vec3(0.95, 0.5, 0.66), tip);
-    return mix(c, tint * (0.5 + lum * 1.0), 0.78);
-  }
+  ${lotusGrade}
   // one eye's (inside, lid cover, lash line): skin from just above slides down over it
   vec3 lid(vec3 c, vec3 n) {
     vec3 d = vL - c;
@@ -761,7 +737,7 @@ const FRAGMENT_COMMON = /* glsl */ `
   }`
 
 const LOTUS_COLOUR = /* glsl */ `
-  diffuseColor.rgb = lotusGrade(diffuseColor.rgb); float isPetal = 1.0;`
+  diffuseColor.rgb = lotusGrade(diffuseColor.rgb, vL); float isPetal = 1.0;`
 
 const GANESHA_COLOUR = /* glsl */ `
   float isPetal = 0.0;

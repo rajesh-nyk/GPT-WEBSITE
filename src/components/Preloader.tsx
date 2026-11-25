@@ -6,6 +6,7 @@ import { preloadFonts } from '../lib/fonts'
 import { variantIsUltra } from '../lib/models'
 import { useQuality } from '../lib/quality'
 import { useReducedMotion } from '../lib/useReducedMotion'
+import { heroFx } from './hero/fx'
 
 type Phase = 'loading' | 'revealing' | 'done'
 
@@ -91,21 +92,31 @@ export function Preloader({ children }: { children: ReactNode }) {
     return () => cancelAnimationFrame(raf)
   }, [phase, ready, reducedMotion])
 
-  // 3. Lock scrolling while the overlay is up; restore + resync ScrollTrigger after.
+  // 3. Hold page one through the loader reveal and the rendered sunrise.
   useEffect(() => {
-    if (phase === 'done') {
-      // Lets effects that must wait for the loader (the cursor's gold glow) switch on.
-      document.documentElement.dataset.siteReady = ''
-      document.documentElement.style.overflow = ''
-      window.scrollTo(0, 0)
-      lenis?.start()
-      ScrollTrigger.refresh() // layout is final now (site content + fonts are in)
+    const root = document.documentElement
+    if (phase !== 'done') {
+      history.scrollRestoration = 'manual'
+      root.style.overflow = 'hidden'
+      lenis?.stop()
       return
     }
-    history.scrollRestoration = 'manual'
-    document.documentElement.style.overflow = 'hidden'
-    lenis?.stop()
-  }, [phase, lenis])
+
+    if (!root.hasAttribute('data-site-ready')) window.scrollTo(0, 0)
+    root.dataset.siteReady = ''
+    let raf = 0
+    const releaseAfterSunrise = () => {
+      if (!reducedMotion && heroFx.rise < 1) {
+        raf = requestAnimationFrame(releaseAfterSunrise)
+        return
+      }
+      root.style.overflow = ''
+      lenis?.start()
+      ScrollTrigger.refresh()
+    }
+    releaseAfterSunrise()
+    return () => cancelAnimationFrame(raf)
+  }, [phase, lenis, reducedMotion])
 
   // 4. Reveal: wait two frames so the site has painted underneath, then slide away.
   useEffect(() => {

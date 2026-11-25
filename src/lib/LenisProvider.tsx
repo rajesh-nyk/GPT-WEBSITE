@@ -174,6 +174,7 @@ export function LenisProvider({ children, paced = false }: { children: ReactNode
       const target = id ? document.getElementById(decodeURIComponent(id)) : null
       if (!link || !target) return
       event.preventDefault()
+      if (paced && instance.isStopped) return
       if (!target.hasAttribute('tabindex') && !target.matches('a[href],button,input,select,textarea')) {
         target.setAttribute('tabindex', '-1')
       }

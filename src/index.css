@@ -33,6 +33,9 @@
   --color-honey: #e9be6a;
   --color-saffron: #f5c453;
   --color-kumkum: #b3122b; /* Hata Ganthi thread */
+  --color-purple-night: #090612;
+  --color-purple-shadow: #1a0f2b;
+  --color-purple-glow: #32194a;
 
   /* Same colours as channels, for rgb(var(--rgb-…) / alpha) */
   --rgb-gold-glow: 226 178 86; /* soft gold: rules, labels, glows */
@@ -1840,17 +1843,21 @@ body {
   opacity: 0;
 }
 
-/* Small production QA overlay: actual WebGL frame cadence and document velocity. */
+/* Scene diagnostics share one bottom overlay that wraps on narrow screens. */
 .scene-fps {
   position: fixed; left: max(12px, env(safe-area-inset-left)); bottom: max(12px, env(safe-area-inset-bottom));
+  max-width: calc(100% - max(12px, env(safe-area-inset-left)) - max(12px, env(safe-area-inset-right)));
   z-index: 100; pointer-events: none; padding: 5px 8px; border-radius: 4px;
   background: rgb(5 7 12 / .78); color: #ddd; font: 11px/1.2 ui-monospace, monospace;
   font-variant-numeric: tabular-nums; border: 1px solid rgb(255 255 255 / .12);
-  display: flex; align-items: center; gap: 8px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px;
 }
+.scene-fps__group { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 .scene-fps__divider { width: 1px; height: 11px; background: rgb(255 255 255 / .24); }
 #scene-fps { min-width: 45px; }
 #scene-velocity { min-width: 75px; color: #e9d7ad; }
+#scene-scroll { min-width: 13ch; }
+#scene-ganesha-position { color: #e9d7ad; white-space: nowrap; }
 #scene-fps[data-rate="good"] { color: #7dda58; }
 #scene-fps[data-rate="fair"] { color: #ffcc77; }
 #scene-fps[data-rate="low"] { color: #ff8585; }
@@ -1867,6 +1874,12 @@ html.cinematic-scroll { touch-action: pan-x pinch-zoom; }
 /* Single diagonal leading edge, with the purple panel moving in document space.
    The overhang allows the right edge to enter before the left. */
 .chapter-panel--sliced { overflow: visible; }
+.page-two-stage { transform: translateY(var(--wipe-hold-offset, 0px)); }
+.ganesha-shot canvas { opacity: 0; }
+.ganesha-shot[data-model-painted] canvas { opacity: 1; }
+@media (prefers-reduced-motion: no-preference) {
+  .ganesha-shot canvas { transition: opacity 400ms var(--ease-out-quint); }
+}
 .page-angle {
   --overhang: min(28vh, 20vw);
   --lead: 0px;
@@ -1876,6 +1889,9 @@ html.cinematic-scroll { touch-action: pan-x pinch-zoom; }
   background: #07060d;
   clip-path: polygon(0 calc(var(--overhang) + var(--edge-shift)), 100% calc(var(--overhang) + var(--edge-shift) - var(--lead)), 100% 100%, 0 100%);
   pointer-events: none;
+}
+.page-angle--purple {
+  background: linear-gradient(145deg, var(--color-purple-night), var(--color-purple-shadow) 54%, var(--color-purple-glow));
 }
 
 /* Dark optical glass: clear centre, curved-looking specular shoulders,
