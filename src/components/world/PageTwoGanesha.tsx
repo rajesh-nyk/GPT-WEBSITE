@@ -19,6 +19,7 @@ const GANESHA = 'ganesha-figure'
 const SEAT = 'ganesha-seat'
 const GLINTS = 'ganesha-ornament-glints'
 const ENTRY_ANGLE = MathUtils.degToRad(-12)
+const EXIT_ANGLE = MathUtils.degToRad(180)
 const PEAK_GLOW = 0.65
 const SWAY_ANGLE = MathUtils.degToRad(1.2)
 const SEAT_HEIGHT = 0.08
@@ -114,6 +115,7 @@ function LotusFigure({ frame }: { frame: RefObject<HTMLDivElement | null> }) {
   const reducedMotion = useReducedMotion()
   const model = useRef<Group>(null)
   const entry = useRef<ScrollTrigger | null>(null)
+  const exit = useRef<ScrollTrigger | null>(null)
   const idleTime = useRef(0)
   const hover = useRef(0)
   const hoverCenter = useRef(new Vector3()).current
@@ -147,11 +149,21 @@ function LotusFigure({ frame }: { frame: RefObject<HTMLDivElement | null> }) {
       onUpdate: () => invalidate(),
       onRefresh: () => invalidate(),
     })
+    const departure = ScrollTrigger.create({
+      trigger: '#page-2',
+      start: 'top top',
+      end: 'bottom top',
+      onUpdate: () => invalidate(),
+      onRefresh: () => invalidate(),
+    })
     entry.current = arrival
+    exit.current = departure
     invalidate()
     return () => {
       arrival.kill()
+      departure.kill()
       entry.current = null
+      exit.current = null
     }
   }, [invalidate, reducedMotion])
 
@@ -161,6 +173,11 @@ function LotusFigure({ frame }: { frame: RefObject<HTMLDivElement | null> }) {
     const figure = seat?.getObjectByName(GANESHA) as LotusMesh | undefined
     if (!petals || !seat || !figure) return
     const progress = reducedMotion ? 1 : entry.current?.progress ?? 0
+    // Rotate the complete seated sculpture around its central vertical axis.
+    // Direct scroll progress: no scrub lag, hold, or independent time animation.
+    // Turning the lotus together with the figure preserves the scanned joins.
+    const departureProgress = reducedMotion ? 0 : MathUtils.clamp(exit.current?.progress ?? 0, 0, 1)
+    if (model.current) model.current.rotation.y = EXIT_ANGLE * departureProgress
     const turn = ENTRY_ANGLE * (1 - MathUtils.smootherstep(progress, 0.24, 0.94))
     const idle = reducedMotion ? 0 : MathUtils.smootherstep(progress, 0.86, 1)
     const dt = Math.min(delta, 0.05)
