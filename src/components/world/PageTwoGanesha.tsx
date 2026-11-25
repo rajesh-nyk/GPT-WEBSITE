@@ -148,7 +148,7 @@ const SWAY_ANGLE = MathUtils.degToRad(1.2)
 const SEAT_HEIGHT = 0.08
 const FRAMING_ASPECT_LIMIT = 1.16
 const FULL_LENS = 2 * Math.tan(MathUtils.degToRad(35 / 2))
-const petalBreath = new WeakMap<LotusMesh['material'], { value: number }>()
+const petalBreath = new WeakMap<LotusMesh['material'], { value: Vector2 }>()
 export const ganeshaPosition = { sample: null as (() => Vector3 | null) | null }
 
 /**
@@ -202,22 +202,33 @@ function applyCondense(shader: { uniforms: Record<string, { value: unknown }>; v
 }
 
 function gradePetals(material: LotusMesh['material']) {
-  const opening = { value: 0 }
+  // x: scroll-gated bloom strength; y: continuous breathing phase.
+  const opening = { value: new Vector2(0, 0) }
   petalBreath.set(material, opening)
-  material.customProgramCacheKey = () => AURA_ENABLED ? 'page-two-lotus-blush-breath-aura' : 'page-two-lotus-blush-breath'
+  material.customProgramCacheKey = () => AURA_ENABLED ? 'page-two-lotus-organic-bloom-aura' : 'page-two-lotus-organic-bloom'
   material.onBeforeCompile = (shader) => {
     applyCondense(shader)
     shader.uniforms.uPetalBreath = opening
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vPetalPosition;\nvarying vec3 vPetalNormal;\nuniform float uPetalBreath;')
+      .replace('#include <common>', '#include <common>\nvarying vec3 vPetalPosition;\nvarying vec3 vPetalNormal;\nuniform vec2 uPetalBreath;')
       .replace('#include <begin_vertex>', /* glsl */ `
         #include <begin_vertex>
         vPetalPosition = position;
         vPetalNormal = normal;
-        // The outermost join vertex is at radius 0.126. Flex only past the join.
-        float tip = smoothstep(0.129, 0.20, length(position.xz)) * smoothstep(0.025, 0.09, position.y);
-        transformed.xz += position.xz * (0.052 * tip * uPetalBreath);
-        transformed.y -= 0.009 * tip * uPetalBreath;
+        // Preserve every shared seat vertex; flex the free petals only.
+        float radius = length(position.xz);
+        float tip = smoothstep(0.129, 0.20, radius);
+        if (tip > 0.0) {
+          float angle = atan(position.z, position.x);
+          // A small periodic phase offset makes adjacent flower regions open
+          // in succession without a seam or independent floating movement.
+          float stagger = 0.38 * sin(angle * 3.0) + 0.17 * cos(angle * 5.0);
+          float cycle = 0.5 - 0.5 * cos(uPetalBreath.y + stagger);
+          float bloom = smoothstep(0.0, 1.0, cycle) * uPetalBreath.x;
+          float flex = tip * mix(0.75, 1.0, smoothstep(0.025, 0.09, position.y));
+          transformed.xz += position.xz * (0.10 * flex * bloom);
+          transformed.y -= 0.015 * flex * bloom;
+        }
       `)
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>\nvarying vec3 vPetalPosition;\nvarying vec3 vPetalNormal;\n${lotusGrade}`)
@@ -552,8 +563,12 @@ function LotusFigure({ frame, invocation }: {
     ganeshaPose.uFigureSway.value = sway
     ganeshaPose.uFigureStretch.value.set(bodyWidth, 1 + inhale * 0.034)
     const opening = petalBreath.get(petals.material)
-    // Hover removed (his request, 25 Nov 2026): the petals stay at rest.
-    if (opening) opening.value = 0
+    // Bloom in place with Ganesha's breathing; fade the motion as page 2 exits.
+    // No movement at the base or in reduced-motion mode.
+    if (opening) opening.value.set(
+      idle * (1 - MathUtils.smootherstep(departureProgress, 0.0, 0.65)),
+      (idleTime.current * 2 * Math.PI / 5.6) % (2 * Math.PI),
+    )
     // Stagger the portrait, the metal catchlights, and the invocation on the paced scroll.
     const faceLight = MathUtils.smootherstep(progress, 0.31, 0.55)
     const bodyLight = MathUtils.smootherstep(progress, 0.46, 0.82)
