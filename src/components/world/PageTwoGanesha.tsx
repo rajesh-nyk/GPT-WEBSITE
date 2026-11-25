@@ -205,7 +205,10 @@ function prepareLotus(root: Object3D) {
   petals.add(seat)
 }
 
-function LotusFigure({ frame }: { frame: RefObject<HTMLDivElement | null> }) {
+function LotusFigure({ frame, invocation }: {
+  frame: RefObject<HTMLDivElement | null>
+  invocation: RefObject<HTMLElement | null>
+}) {
   const { width, height } = useThree((state) => state.size)
   const invalidate = useThree((state) => state.invalidate)
   const getSceneState = useThree((state) => state.get)
@@ -321,11 +324,20 @@ function LotusFigure({ frame }: { frame: RefObject<HTMLDivElement | null> }) {
     ganeshaPose.uFigureStretch.value.set(bodyWidth, 1 + inhale * (0.024 + 0.062 * hover.current))
     const opening = petalBreath.get(petals.material)
     if (opening) opening.value = inhale * hover.current
+    // One shared envelope for the divine rays and the bilingual invocation.
+    // DOM text uses the exact shader fade; no second trigger or timed animation.
+    const fade = MathUtils.smoothstep(progress, 0.35, 0.96)
+      * (1 - MathUtils.smoothstep(departureProgress, 0, 0.90))
+    if (invocation.current) {
+      const opacity = fade.toFixed(3)
+      if (invocation.current.style.opacity !== opacity) {
+        invocation.current.style.opacity = opacity
+        invocation.current.style.transform = reducedMotion
+          ? 'none'
+          : `translate3d(0, ${(12 * (1 - fade)).toFixed(2)}px, 0)`
+      }
+    }
     if (AURA_ENABLED && auraMaterial.current) {
-      // The aura follows the existing chapter motion and settles with the
-      // sculpture; it never changes the scroll timeline or model geometry.
-      const fade = MathUtils.smoothstep(progress, 0.35, 0.96)
-        * (1 - MathUtils.smoothstep(departureProgress, 0, 0.90))
       auraMaterial.current.uniforms.uFade.value = fade
       auraMaterial.current.uniforms.uTime.value = reducedMotion ? 0 : idleTime.current
       lotusAuraGlow.value = AURA_SETTINGS.lotus * fade * (0.96 + 0.04 * inhale)
@@ -386,6 +398,7 @@ function LotusFigure({ frame }: { frame: RefObject<HTMLDivElement | null> }) {
 
 export function PageTwoGanesha() {
   const frame = useRef<HTMLDivElement>(null)
+  const invocation = useRef<HTMLElement>(null)
   return (
     <div ref={frame} className="ganesha-shot pointer-events-none absolute inset-0">
       <SceneCanvas
@@ -394,8 +407,43 @@ export function PageTwoGanesha() {
         effects={false}
         still
       >
-        <LotusFigure frame={frame} />
+        <LotusFigure frame={frame} invocation={invocation} />
       </SceneCanvas>
+      <footer
+        ref={invocation}
+        aria-label="Ganesha invocation"
+        style={{
+          position: 'absolute',
+          insetInline: 0,
+          bottom: 'max(4.5dvh, calc(env(safe-area-inset-bottom, 0px) + 12px))',
+          zIndex: 1,
+          textAlign: 'center',
+          paddingInline: '16px',
+          opacity: 0,
+          transform: 'translate3d(0, 12px, 0)',
+          color: '#f4dca8',
+          textShadow: '0 0 18px rgba(231, 174, 93, 0.28), 0 2px 10px rgba(5, 3, 9, 0.92)',
+          pointerEvents: 'none',
+        }}
+      >
+        <span lang="or" style={{
+          display: 'block',
+          fontFamily: 'var(--font-odia)',
+          fontSize: 'clamp(1.25rem, min(3.1vw, 4.1dvh), 2.2rem)',
+          fontWeight: 400,
+          lineHeight: 1.5,
+        }}>ଶ୍ରୀ ଗଣେଶାୟ ନମଃ</span>
+        <span lang="en" style={{
+          display: 'block',
+          fontFamily: 'var(--font-display)',
+          fontSize: 'clamp(0.8rem, min(1.4vw, 2.2dvh), 1.2rem)',
+          fontWeight: 500,
+          lineHeight: 1.4,
+          letterSpacing: '0.16em',
+          color: '#e3c99b',
+          marginTop: '0.25em',
+        }}>Sri Ganeshaya Namah</span>
+      </footer>
     </div>
   )
 }
