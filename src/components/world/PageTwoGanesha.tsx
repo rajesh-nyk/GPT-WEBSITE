@@ -19,7 +19,8 @@ const GANESHA = 'ganesha-figure'
 const SEAT = 'ganesha-seat'
 const GLINTS = 'ganesha-ornament-glints'
 const ENTRY_ANGLE = MathUtils.degToRad(-12)
-const EXIT_ANGLE = MathUtils.degToRad(180)
+const EXIT_ANGLE = MathUtils.degToRad(28)
+const EXIT_ROTATION_RESPONSE = 16
 const PEAK_GLOW = 0.65
 const SWAY_ANGLE = MathUtils.degToRad(1.2)
 const SEAT_HEIGHT = 0.08
@@ -173,14 +174,22 @@ function LotusFigure({ frame }: { frame: RefObject<HTMLDivElement | null> }) {
     const figure = seat?.getObjectByName(GANESHA) as LotusMesh | undefined
     if (!petals || !seat || !figure) return
     const progress = reducedMotion ? 1 : entry.current?.progress ?? 0
-    // Rotate the complete seated sculpture around its central vertical axis.
-    // Direct scroll progress: no scrub lag, hold, or independent time animation.
-    // Turning the lotus together with the figure preserves the scanned joins.
+    const dt = Math.min(delta, 0.05)
+    // A restrained turn begins with the first scroll increment. Frame-rate
+    // independent damping absorbs wheel/trackpad step changes in either direction.
+    // Rotate the entire seated sculpture to preserve the figure/lotus joins.
     const departureProgress = reducedMotion ? 0 : MathUtils.clamp(exit.current?.progress ?? 0, 0, 1)
-    if (model.current) model.current.rotation.y = EXIT_ANGLE * departureProgress
+    const targetYaw = EXIT_ANGLE * departureProgress
+    if (model.current) {
+      const yaw = model.current.rotation.y
+      const nextYaw = reducedMotion || Math.abs(targetYaw - yaw) < 0.0001
+        ? targetYaw
+        : MathUtils.damp(yaw, targetYaw, EXIT_ROTATION_RESPONSE, dt)
+      model.current.rotation.y = nextYaw
+      if (Math.abs(targetYaw - nextYaw) >= 0.0001) invalidate()
+    }
     const turn = ENTRY_ANGLE * (1 - MathUtils.smootherstep(progress, 0.24, 0.94))
     const idle = reducedMotion ? 0 : MathUtils.smootherstep(progress, 0.86, 1)
-    const dt = Math.min(delta, 0.05)
     if (idle > 0) {
       idleTime.current += dt
       invalidate()
