@@ -720,9 +720,9 @@ function LotusFigure({ frame, invocation }: {
 }
 
 const MANTRA_BORDER = typeof window !== 'undefined' &&
-  new URLSearchParams(window.location.search).get('mantra-border') === '1'
+  new URLSearchParams(window.location.search).get('mantra-border') !== '0'
 const MANTRA_GLOW = typeof window !== 'undefined' &&
-  new URLSearchParams(window.location.search).get('mantra-glow') === '1'
+  new URLSearchParams(window.location.search).get('mantra-glow') !== '0'
 const mantraGlowStyle = {
   textShadow: 'none',
   filter: 'drop-shadow(0 0 2px rgb(255 218 145 / .72)) drop-shadow(0 0 4px rgb(255 183 74 / .32))',
