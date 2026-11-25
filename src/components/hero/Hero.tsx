@@ -1,9 +1,7 @@
 import { Fragment, useRef } from 'react'
 import { CEREMONIES } from '../../content/wedding'
-import { useReducedMotion } from '../../lib/useReducedMotion'
 import { useJourneySegment } from '../world/journey'
 import { heroLayoutVars } from './layout'
-import { useBehindWheel } from './useBehindWheel'
 import { TechNames } from './TechNames'
 
 const HERO_DATES = [CEREMONIES.nirbandha, CEREMONIES.bahaghara, CEREMONIES.reception]
@@ -18,18 +16,14 @@ const HERO_DATES = [CEREMONIES.nirbandha, CEREMONIES.bahaghara, CEREMONIES.recep
  * horizon behind the wheel and the wheel catches its light; only then do the names
  * arrive (2.3s), followed by the ornament, the Odia names, place & year, and the cue.
  *
- * Leaving: the text scrolls up *behind* the travelling wheel, each line easing out before
- * it reaches the rim (useBehindWheel). Fade wrappers ([data-fade-line]) are separate from
- * the .hero-reveal elements so the entrance animation and the scroll fade never fight.
+ * Leaving: the complete chapter panel slides upward as one composition. The
+ * text retains its position relative to the 3D artwork with no independent fades.
  *
  * All content is real HTML: selectable, translatable and screen-reader friendly.
  */
 export function Hero({ nextId }: { nextId?: string }) {
   const section = useRef<HTMLElement>(null)
   useJourneySegment(section, 0, 'top top', 'bottom top')
-
-  const reducedMotion = useReducedMotion()
-  useBehindWheel(section, reducedMotion)
 
   return (
     <section
@@ -88,8 +82,6 @@ export function Hero({ nextId }: { nextId?: string }) {
       {nextId && (
         <a
           href={`#${nextId}`}
-          // .hero-reveal lives on an inner wrapper so the CSS entrance animation and the
-          // scroll fade (opacity on this element) never fight.
           data-fade-line
           data-wheel-mask
           aria-label="Scroll to the next section"

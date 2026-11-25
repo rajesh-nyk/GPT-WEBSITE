@@ -36,6 +36,11 @@ export function PageOneWorld() {
 
     {
       const stats = frameStats.current
+      // An intersection pause may leave a large first delta on resume.
+      if (delta > 0.5) {
+        stats.frames = stats.elapsed = stats.slow = 0
+        return
+      }
       stats.frames++
       stats.elapsed += delta
       if (delta > 1 / 50) stats.slow++
@@ -44,6 +49,7 @@ export function PageOneWorld() {
         const display = document.getElementById('scene-fps')
         if (display) {
           display.textContent = Math.round(fps) + ' FPS'
+          display.removeAttribute('title')
           display.dataset.rate = fps >= 58 ? 'good' : fps >= 45 ? 'fair' : 'low'
         }
         document.documentElement.dataset.pageFps = (stats.frames / stats.elapsed).toFixed(1)

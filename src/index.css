@@ -1841,3 +1841,9 @@ html {
 
 /* Vertical touch gestures are handled by paced Lenis; horizontal and pinch stay native. */
 html.cinematic-scroll { touch-action: pan-x pinch-zoom; }
+
+/* Full-screen chapter panels, each with its own local artwork. The actual
+   chapter offset is driven by the existing spring navigator. No per-element
+   translations or background pinning are used during the vertical slide. */
+.chapter-panel { position: relative; isolation: isolate; overflow: hidden; width: 100%; }
+.chapter-panel--hero { background: #050509; }

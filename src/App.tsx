@@ -18,6 +18,17 @@ export default function App() {
     const timer = window.setInterval(() => {
       const now = performance.now()
       const y = window.scrollY
+      // The WebGL chapter is deliberately suspended when fully out of view.
+      // Do not leave the last rendered FPS looking like a current measurement.
+      const hero = document.getElementById('hero')
+      if (hero && hero.getBoundingClientRect().bottom <= 0) {
+        const fps = document.getElementById('scene-fps')
+        if (fps) {
+          fps.textContent = '— FPS'
+          fps.removeAttribute('data-rate')
+          fps.title = 'WebGL paused: Page 1 is off-screen'
+        }
+      }
       if (document.hidden || now - previousTime > 1000) {
         reset()
         return
@@ -39,14 +50,16 @@ export default function App() {
 
   return (
     <>
-      <WorldCanvas />
       <main className="relative">
-        <Hero nextId="page-2" />
+        <div className="chapter-panel chapter-panel--hero">
+          <WorldCanvas />
+          <Hero nextId="page-2" />
+        </div>
         <section
           id="page-2"
           data-scroll-scene=""
           aria-label="Page 2"
-          className="relative z-10 min-h-dvh w-full text-gold-light"
+          className="chapter-panel relative z-10 min-h-dvh w-full text-gold-light"
           style={{ background: 'linear-gradient(155deg, #170d35 0%, #49218a 48%, #782cc2 100%)' }}
         />
       </main>

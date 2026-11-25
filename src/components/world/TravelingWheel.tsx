@@ -78,8 +78,8 @@ export function TravelingWheel({
     const pxToWorld = viewport.height / size.height
 
     if (pageTransition) {
-      // Fixed camera. Page-one content moves by the exact native scroll offset.
-      // Lenis owns the pace; there is no separate position tween.
+      // The entire page panel (including the canvas) slides in document space.
+      // Keep the wheel anchored within its own canvas; scroll only rotates Y.
       const scrollY = window.scrollY
       const span = document.getElementById('hero')?.offsetHeight || size.height
       const p = MathUtils.clamp(scrollY / Math.max(1, span), 0, 1)
@@ -87,7 +87,7 @@ export function TravelingWheel({
       // No separate easing, delay, or time-driven rotation on this axis.
       const turn = p
       const idle = 1 - MathUtils.smootherstep(p, 0, 0.12)
-      g.position.set(0, heroY + scrollY * pxToWorld, 0)
+      g.position.set(0, heroY, 0)
       g.scale.setScalar(scale)
       g.rotation.set(reducedMotion ? 0 : -pointer.y * MAX_TILT * idle, 0, 0)
       s.rotation.y = reducedMotion ? 0 : turn * Math.PI * 2
@@ -108,7 +108,8 @@ export function TravelingWheel({
           toUv(center, camera, glowCenters.sun)
           glowCenters.sunRadius = circle.r / size.height
         }
-        screenShapes.wheel = { ...circle, sx: Math.max(Math.abs(Math.cos(s.rotation.y)), 0.2) }
+        // Projection is canvas-local, while hover regions are client-space.
+        screenShapes.wheel = { ...circle, y: circle.y - scrollY, sx: Math.max(Math.abs(Math.cos(s.rotation.y)), 0.2) }
       } else screenShapes.wheel = null
       return
     }
