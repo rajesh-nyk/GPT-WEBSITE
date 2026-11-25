@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Hero } from './components/hero/Hero'
 import { WorldCanvas } from './components/world/WorldCanvas'
+import { SlicedPageTwo } from './components/SlicedPageTwo'
 
 export default function App() {
   const velocityOutput = useRef<HTMLOutputElement>(null)
@@ -55,13 +56,7 @@ export default function App() {
           <WorldCanvas />
           <Hero nextId="page-2" />
         </div>
-        <section
-          id="page-2"
-          data-scroll-scene=""
-          aria-label="Page 2"
-          className="chapter-panel relative z-10 min-h-dvh w-full text-gold-light"
-          style={{ background: 'linear-gradient(155deg, #170d35 0%, #49218a 48%, #782cc2 100%)' }}
-        />
+        <SlicedPageTwo />
       </main>
       <div className="scene-fps" aria-label="Performance testing">
         <output id="scene-fps" aria-label="WebGL frames per second" aria-live="off">-- FPS</output>
