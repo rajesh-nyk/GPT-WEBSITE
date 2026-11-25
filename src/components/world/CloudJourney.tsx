@@ -144,11 +144,12 @@ const compositeFragment=`
   uniform sampler2D uCloud;
   uniform vec2 uBounds;
   uniform vec2 uCanvasY;
+  uniform float uTargetFraction;
   varying vec2 vUv;
   void main(){
     float y=uCanvasY.x+vUv.y*uCanvasY.y;
     if(y<uBounds.x||y>uBounds.y)discard;
-    vec4 c=texture2D(uCloud,vec2(vUv.x,(y-uBounds.x)/max(.0001,uBounds.y-uBounds.x)));
+    vec4 c=texture2D(uCloud,vec2(vUv.x,(y-uBounds.x)/max(.0001,uBounds.y-uBounds.x)*uTargetFraction));
     if(c.a<.002)discard;
     gl_FragColor=c;
     #include <colorspace_fragment>
@@ -180,7 +181,7 @@ export function CloudJourney(){
     const material=new ShaderMaterial({
       vertexShader:compositeVertex,fragmentShader:compositeFragment,
       transparent:true,depthTest:true,depthWrite:false,blending:NormalBlending,toneMapped:false,
-      uniforms:{uCloud:{value:target.texture},uBounds:{value:bounds},uCanvasY:{value:new Vector2(0,1)}}
+      uniforms:{uCloud:{value:target.texture},uBounds:{value:bounds},uCanvasY:{value:new Vector2(0,1)},uTargetFraction:{value:1}}
     })
     return {noise,target,bounds,cloud,plane,scene,camera,material,viewport:new Vector4(),scissor:new Vector4(),clear:new Color()}
   },[])
@@ -216,16 +217,20 @@ export function CloudJourney(){
     res.material.uniforms.uCanvasY.value.set(bottom,g.height/vh)
     // Quarter-ish pixel workload compared with the existing Ultra canvases.
     const factor=Math.min(.65,1050/vw)
-    const w=Math.max(1,Math.round(vw*factor)),h=Math.max(1,Math.round(vh*(hi-lo)*factor))
+    const w=Math.max(1,Math.round(vw*factor)),h=Math.max(1,Math.round(vh*factor))
+    const activeH=Math.max(1,Math.min(h,Math.ceil(h*(hi-lo))))
     const time=performance.now()/1000
     const old=last.current
     if(p===old.p&&lo===old.lo&&hi===old.hi&&w===old.w&&h===old.h&&(reduced||time-old.time<1/24))return
     if(w!==old.w||h!==old.h)res.target.setSize(w,h)
+    // Keep the allocation fixed through scroll; only its active viewport shrinks.
+    res.target.viewport.set(0,0,w,activeH)
+    res.material.uniforms.uTargetFraction.value=activeH/h
     res.bounds.set(lo,hi)
     const u=res.cloud.uniforms
-    u.uAspect.value=vw/vh;u.uProgress.value=p;u.uTime.value=reduced?0:time%3600
+    u.uAspect.value=vw/vh;u.uProgress.value=p;u.uTime.value=reduced?0:time
     u.uWheelLight.value=(1-p)*heroFx.rise*(.75+.25*heroFx.breath)
-    u.uSunCenter.value.set(glowCenters.sun.x, bottom+glowCenters.sun.y*g.height/vh)
+    u.uSunCenter.value.set(glowCenters.sun[0],1-(g.hero*(1-glowCenters.sun[1])-y)/vh)
     // Isolate the offscreen render from the existing scissor and composer state.
     const previous=gl.getRenderTarget(),scissorTest=gl.getScissorTest(),alpha=gl.getClearAlpha(),autoClear=gl.autoClear
     gl.getViewport(res.viewport);gl.getScissor(res.scissor);gl.getClearColor(res.clear)
