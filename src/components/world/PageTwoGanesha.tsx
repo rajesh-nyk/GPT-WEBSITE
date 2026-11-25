@@ -719,43 +719,6 @@ function LotusFigure({ frame, invocation }: {
   )
 }
 
-const MANTRA_BORDER = typeof window !== 'undefined' &&
-  new URLSearchParams(window.location.search).get('mantra-border') === '1'
-const MANTRA_GLOW = typeof window !== 'undefined' &&
-  new URLSearchParams(window.location.search).get('mantra-glow') === '1'
-const mantraGlowStyle = {
-  textShadow: 'none',
-  filter: 'drop-shadow(0 0 2px rgb(255 218 145 / .72)) drop-shadow(0 0 4px rgb(255 183 74 / .32))',
-} as const
-
-function MantraRoyalFrame() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 340 120" preserveAspectRatio="none"
-      style={{ position: 'absolute', inset: '-15px -12px', width: 'calc(100% + 24px)', height: 'calc(100% + 30px)', overflow: 'visible', pointerEvents: 'none' }}>
-      <defs>
-        <linearGradient id="mantra-dream-edge" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#AB6EFA" stopOpacity=".08" />
-          <stop offset=".22" stopColor="#C8A0FF" stopOpacity=".68" />
-          <stop offset=".48" stopColor="#F6E8FF" stopOpacity=".85" />
-          <stop offset=".76" stopColor="#AB6EFA" stopOpacity=".4" />
-          <stop offset="1" stopColor="#AB6EFA" stopOpacity=".06" />
-        </linearGradient>
-      </defs>
-      {/* Airy, tapered arches frame the words without a panel or an aura. */}
-      <g fill="none" stroke="url(#mantra-dream-edge)" strokeLinecap="round" strokeLinejoin="round">
-        <path vectorEffect="non-scaling-stroke" strokeWidth=".9" d="M7 48C7 22 31 13 64 13H135Q157 13 170 4Q183 13 205 13H276C309 13 333 22 333 48M333 72C333 98 309 107 276 107H205Q183 107 170 116Q157 107 135 107H64C31 107 7 98 7 72" />
-        <path vectorEffect="non-scaling-stroke" strokeWidth=".55" opacity=".55" d="M3 42C12 18 34 8 76 8M264 8C306 8 328 18 337 42M337 78C328 102 306 112 264 112M76 112C34 112 12 102 3 78" />
-      </g>
-      <g fill="#E9D5FF" opacity=".7">
-        <path d="M170 0Q171 3 175 4Q171 5 170 8Q169 5 165 4Q169 3 170 0Z" />
-        <path d="M170 112Q171 115 175 116Q171 117 170 120Q169 117 165 116Q169 115 170 112Z" />
-        <path d="M7 54Q8 59 13 60Q8 61 7 66Q6 61 1 60Q6 59 7 54Z" />
-        <path d="M333 54Q334 59 339 60Q334 61 333 66Q332 61 327 60Q332 59 333 54Z" />
-      </g>
-    </svg>
-  )
-}
-
 export function PageTwoGanesha() {
   const frame = useRef<HTMLDivElement>(null)
   const invocation = useRef<HTMLElement>(null)
@@ -786,19 +749,16 @@ export function PageTwoGanesha() {
       {!MANTRA_RISE && <footer
         ref={invocation}
         className="page-two-invocation"
-        style={MANTRA_GLOW && !MANTRA_BORDER ? mantraGlowStyle : undefined}
+        style={{ textShadow: 'none', filter: 'drop-shadow(0 0 2px rgb(255 218 145 / .72)) drop-shadow(0 0 4px rgb(255 183 74 / .32))' }}
         aria-label="Ganesha invocation"
       >
-        <div style={MANTRA_BORDER ? { position: 'relative', display: 'inline-block' } : undefined}>
-          {MANTRA_BORDER && <MantraRoyalFrame />}
-          <div style={MANTRA_BORDER && MANTRA_GLOW ? { ...GLASS, ...mantraGlowStyle } : GLASS}>
+        <div style={GLASS}>
           <h2 lang="or" className="page-two-invocation__title" style={GLASS_TEXT}>
             ଶ୍ରୀ ଗଣେଶାୟ ନମଃ
           </h2>
           <p lang="en" className="page-two-invocation__romanization" style={GLASS_TEXT}>
             Sri Ganeshaya Namah
           </p>
-          </div>
         </div>
       </footer>}
     </div>
