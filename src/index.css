@@ -1848,17 +1848,15 @@ html.cinematic-scroll { touch-action: pan-x pinch-zoom; }
 .chapter-panel { position: relative; isolation: isolate; overflow: hidden; width: 100%; }
 .chapter-panel--hero { background: #050509; }
 
-/* Incoming chapter is seven narrow compositor layers, not seven copies of
-   the whole scene. Overflow lets their leading edges slide over Page 1. */
+/* Single diagonal leading edge, with the purple panel moving in document space.
+   The overhang allows the right edge to enter before the left. */
 .chapter-panel--sliced { overflow: visible; }
-.page-slice-grid {
-  position: absolute; inset: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+.page-angle {
+  --overhang: min(28vh, 20vw);
+  --lead: 0px;
+  position: absolute;
+  inset: calc(-1 * var(--overhang)) 0 0;
+  background: linear-gradient(155deg, #170d35 0%, #49218a 48%, #782cc2 100%);
+  clip-path: polygon(0 var(--overhang), 100% calc(var(--overhang) - var(--lead)), 100% 100%, 0 100%);
   pointer-events: none;
 }
-.page-slice {
-  min-width: 0; height: 100%;
-  background-image: linear-gradient(155deg, #170d35 0%, #49218a 48%, #782cc2 100%);
-  background-repeat: no-repeat;
-  will-change: transform;
-}
-@media (prefers-reduced-motion: reduce) { .page-slice { will-change: auto; } }
