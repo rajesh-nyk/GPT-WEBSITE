@@ -895,21 +895,19 @@ function MantraTicker({ language, phrase }: { language: 'or' | 'en'; phrase: str
   return (
     <div className={`mantra-ticker mantra-ticker--${language}`} lang={language}>
       <span className="sr-only">{phrase}</span>
-      {[false, true].map(glow => (
-        <div key={String(glow)} className={glow ? 'mantra-ticker__glow' : 'mantra-ticker__base'} aria-hidden="true">
-          <div className="mantra-ticker__track">
-            {[0, 1].map(group => (
-              <div className="mantra-ticker__group" key={group}>
-                {[0, 1, 2, 3].map(i => (
-                  <span className="mantra-ticker__item" key={i}>
-                    {phrase}<span className="mantra-ticker__separator">✧</span>
-                  </span>
-                ))}
-              </div>
+      <div className="mantra-ticker__track" aria-hidden="true">
+        {[0, 1].map(group => (
+          <div className="mantra-ticker__group" key={group}>
+            {[0, 1, 2, 3].map(i => (
+              <span className="mantra-ticker__item" key={i}>
+                {phrase}<span className="mantra-ticker__separator">✧</span>
+              </span>
             ))}
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
+      <span className="mantra-ticker__edge mantra-ticker__edge--top" aria-hidden="true" />
+      <span className="mantra-ticker__edge mantra-ticker__edge--bottom" aria-hidden="true" />
     </div>
   )
 }
@@ -962,29 +960,42 @@ export function PageTwoGanesha() {
             .mantra-ticker__group { display: flex; align-items: center; justify-content: space-around; min-width: 100vw; flex: none; }
             .mantra-ticker__item { flex: none; white-space: nowrap; padding-inline: clamp(14px, 2.1vw, 42px); text-shadow: 0 0 2px rgb(255 218 145 / .72), 0 0 4px rgb(255 183 74 / .32); }
             .mantra-ticker__separator { margin-inline-start: clamp(20px, 3vw, 60px); color: #d8b8ff; opacity: .7; font-size: .7em; }
-            .mantra-ticker__base { display: flex; flex: none; width: max-content; }
-            .mantra-ticker__glow {
-              position: absolute; inset: 0; display: flex; align-items: center; pointer-events: none;
-              -webkit-mask-image: linear-gradient(90deg, transparent 44%, rgb(0 0 0 / .35) 47%, #000 50%, rgb(0 0 0 / .35) 53%, transparent 56%);
-              mask-image: linear-gradient(90deg, transparent 44%, rgb(0 0 0 / .35) 47%, #000 50%, rgb(0 0 0 / .35) 53%, transparent 56%);
-              -webkit-mask-size: 240% 100%; mask-size: 240% 100%;
-              -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
-              animation: mantra-glow-sweep 8s linear infinite; animation-play-state: paused;
+            .mantra-ticker__edge {
+              position: absolute; inset-inline: 0; height: 10px; overflow: hidden;
+              pointer-events: none; z-index: 2;
             }
-            .mantra-ticker--en .mantra-ticker__glow { animation-direction: reverse; animation-delay: -3s; }
-            .mantra-ticker-stage[data-revealed="true"] .mantra-ticker__glow { animation-play-state: running; }
-            .mantra-ticker__glow .mantra-ticker__item { color: #fff9e6; text-shadow: 0 0 3px #fff0bb, 0 0 9px rgb(255 203 116 / .85), 0 0 17px rgb(255 180 85 / .48); }
-            .mantra-ticker__glow .mantra-ticker__separator { color: #f9e9ff; opacity: 1; }
-            @keyframes mantra-glow-sweep {
-              from { -webkit-mask-position: 100% 0; mask-position: 100% 0; }
-              to { -webkit-mask-position: 0% 0; mask-position: 0% 0; }
+            .mantra-ticker__edge--top { top: 0; }
+            .mantra-ticker__edge--bottom { bottom: 0; }
+            .mantra-ticker__edge::before, .mantra-ticker__edge::after {
+              content: ''; position: absolute; left: 0; width: 30%; pointer-events: none;
+              transform: translate3d(-105%,0,0);
+              animation: mantra-edge-flow 6s linear infinite; animation-play-state: paused;
+            }
+            .mantra-ticker__edge::before {
+              height: 2px;
+              background: linear-gradient(90deg, transparent 0%, rgb(255 173 72 / .2) 18%, #ffd088 65%, #fff7da 80%, transparent 100%);
+              filter: drop-shadow(0 0 3px #ffbe69);
+            }
+            .mantra-ticker__edge::after {
+              height: 7px;
+              background: linear-gradient(90deg, transparent, rgb(255 179 79 / .14) 40%, rgb(255 210 132 / .48) 76%, transparent);
+              filter: blur(2px);
+            }
+            .mantra-ticker__edge--top::before, .mantra-ticker__edge--top::after { top: 1px; }
+            .mantra-ticker__edge--bottom::before, .mantra-ticker__edge--bottom::after { bottom: 1px; }
+            .mantra-ticker__edge--bottom::before, .mantra-ticker__edge--bottom::after { animation-delay: -3s; }
+            .mantra-ticker--en .mantra-ticker__edge::before, .mantra-ticker--en .mantra-ticker__edge::after { animation-direction: reverse; }
+            .mantra-ticker-stage[data-revealed="true"] .mantra-ticker__edge::before,
+            .mantra-ticker-stage[data-revealed="true"] .mantra-ticker__edge::after { animation-play-state: running; }
+            @keyframes mantra-edge-flow {
+              from { transform: translate3d(-105%,0,0); }
+              to { transform: translate3d(340%,0,0); }
             }
             @keyframes mantra-ticker-scroll { from { transform: translate3d(0,0,0); } to { transform: translate3d(-50%,0,0); } }
             @media (prefers-reduced-motion: reduce) {
               .mantra-ticker { transition: none; justify-content: center; mask-image: none; }
               .mantra-ticker__track { animation: none; width: auto; }
-              .mantra-ticker__base { width: auto; }
-              .mantra-ticker__glow { display: none; }
+              .mantra-ticker__edge { display: none; }
               .mantra-ticker__group { min-width: 0; }
               .mantra-ticker__group + .mantra-ticker__group, .mantra-ticker__item + .mantra-ticker__item, .mantra-ticker__separator { display: none; }
             }
