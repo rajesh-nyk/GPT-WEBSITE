@@ -1,0 +1,16 @@
+name: Test website changed
+
+on:
+  push:
+    branches: [test]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  signal:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Signal permanent preview deployment
+        run: echo "Test branch updated"
