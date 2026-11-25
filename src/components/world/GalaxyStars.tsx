@@ -60,6 +60,12 @@ const fragment =
     .replace('precision highp float;\nprecision highp int;\n', '')
     .replace('out vec4 outColor;\n', '')
     .replaceAll('outColor =', 'gl_FragColor =')
+    // Chapter galaxies always have four layers and transparent output.
+    // Specialize constants without changing density, colors or animation.
+    .replace('float layers = float(uLayers);', 'float layers = 4.0;')
+    .replace(/for \(int k = 0; k < \d+; k\+\+\) \{\s*if \(k >= uLayers\) break;/, 'for (int k = 0; k < 4; k++) {')
+    .replace('if (uMode > 1.5)', 'if (false)')
+    .replace('else if (uMode > 0.5)', 'else if (true)')
     // Same look on every quality tier. Galaxy's colours are display (sRGB) values: turn
     // them into linear light, then let three.js encode for the output. Drawn straight to
     // the screen (low tier) that round-trips exactly; into the post-processing buffer
