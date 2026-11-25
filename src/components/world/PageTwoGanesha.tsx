@@ -456,7 +456,9 @@ function makePetalPollen(petals: LotusMesh) {
   const source = petals.geometry.getAttribute('position')
   const normals = petals.geometry.getAttribute('normal')
   const sectors = 24
-  const tips: ({ x: number; y: number; z: number; nx: number; ny: number; nz: number; score: number } | undefined)[] = Array(sectors)
+  type PetalSample = { x: number; y: number; z: number; nx: number; ny: number; nz: number; score: number }
+  const tips: (PetalSample | undefined)[] = Array(sectors)
+  const samples: PetalSample[][] = Array.from({ length: sectors }, () => [])
   for (let i = 0; i < source.count; i++) {
     const x = source.getX(i), y = source.getY(i), z = source.getZ(i)
     const radius = Math.hypot(x, z)
@@ -466,7 +468,9 @@ function makePetalPollen(petals: LotusMesh) {
     const nx = normals?.getX(i) ?? 0, ny = normals?.getY(i) ?? 1, nz = normals?.getZ(i) ?? 0
     // Prefer exposed upper petal ridges instead of underside vertices.
     const score = radius + 0.64 * y + 0.018 * Math.max(0, ny)
-    if (!tips[bin] || score > tips[bin]!.score) tips[bin] = { x, y, z, nx, ny, nz, score }
+    const sample = { x, y, z, nx, ny, nz, score }
+    if (!tips[bin] || score > tips[bin]!.score) tips[bin] = sample
+    if (ny > 0.12) samples[bin].push(sample)
   }
   const roots: ({ x: number; y: number; z: number; score: number } | undefined)[] = Array(sectors)
   // Recover the root-to-tip pitch from the actual mesh in each angular sector.
@@ -490,11 +494,27 @@ function makePetalPollen(petals: LotusMesh) {
     const tip = tips[i]
     if (!tip) continue
     const root = roots[i] ?? { x: tip.x * 0.72, y: tip.y - 0.008, z: tip.z * 0.72 }
+    // Spread births along real exposed vertices, rather than stacking ten
+    // additive sprites on one tip. Use only points close to the outer ridge.
+    const ridge = samples[i].filter(s =>
+      Math.hypot(s.x, s.z) >= Math.hypot(tip.x, tip.z) - 0.035 &&
+      s.score >= tip.score - 0.055
+    ).sort((a, b) => b.score - a.score)
+    const selected: PetalSample[] = []
+    for (const sample of ridge) {
+      if (selected.every(s => Math.hypot(s.x - sample.x, s.y - sample.y, s.z - sample.z) >= 0.0035)) {
+        selected.push(sample)
+        if (selected.length === 10) break
+      }
+    }
+    if (!selected.length) selected.push(tip)
     for (let j = 0; j < 10; j++) {
-      positions.push(tip.x, tip.y, tip.z)
+      const sample = selected[j % selected.length]
+      positions.push(sample.x, sample.y, sample.z)
       petalRoots.push(root.x, root.y, root.z)
-      surfaceNormals.push(tip.nx, tip.ny, tip.nz)
-      seeds.push(((i * 73 + j * 37 + 19) % 113) / 113, ((i * 41 + j * 59 + 7) % 101) / 101)
+      surfaceNormals.push(sample.nx, sample.ny, sample.nz)
+      // Spread the births across the opening rather than firing in a burst.
+      seeds.push((j + ((i * 73 + j * 37 + 19) % 113) / 113) / 10, ((i * 41 + j * 59 + 7) % 101) / 101)
     }
   }
   const geometry = new BufferGeometry()
@@ -517,14 +537,16 @@ function makePetalPollen(petals: LotusMesh) {
         float angle = atan(position.z, position.x);
         float stagger = 0.38 * sin(angle * 3.0) + 0.17 * cos(angle * 5.0);
         // Release only on the opening half of the same 5.6-second bloom cycle.
-        float birth = 0.55 + aSeed.x * 1.65 - stagger * 5.6 / 6.2831853;
-        float life = 1.35 + aSeed.y * 1.05;
-        // A short visible, surface-attached glow precedes the release.
-        float age = mod(uPhase - birth + 0.24 + 5.6, 5.6) - 0.24;
+        float birth = 0.30 + aSeed.x * 2.35 - stagger * 5.6 / 6.2831853;
+        float life = 2.1 + aSeed.y * 0.65;
+        // Invisible at the loop seam; fade in on the petal before detaching.
+        float age = mod(uPhase - birth + 0.18 + 5.6, 5.6) - 0.18;
         float t = clamp(age / life, 0.0, 1.0);
         float birthCycle = 0.5 - 0.5 * cos(birth * 6.2831853 / 5.6 + stagger);
         float currentCycle = 0.5 - 0.5 * cos(uPhase * 6.2831853 / 5.6 + stagger);
-        float bloom = mix(smoothstep(0.0, 1.0, currentCycle), smoothstep(0.0, 1.0, birthCycle), smoothstep(0.0, 0.12, t)) * uBloom;
+        // Follow the exact animated vertex until birth, then release from
+        // that position continuously instead of chasing the moving petal.
+        float bloom = smoothstep(0.0, 1.0, age <= 0.0 ? currentCycle : birthCycle) * uBloom;
         float flex = smoothstep(0.129, 0.20, radius) * mix(0.75, 1.0, smoothstep(0.025, 0.09, position.y));
         vec3 origin = position;
         origin.xz *= 1.0 + 0.10 * flex * bloom;
@@ -536,17 +558,20 @@ function makePetalPollen(petals: LotusMesh) {
         vec3 root = aPetalRoot;
         root.xz *= 1.0 + 0.10 * rf * bloom;
         root.y -= 0.015 * rf * bloom;
-        vec3 axis = normalize(origin - root);
-        vec3 normal = normalize(vec3(aSurfaceNormal.x, max(0.35, aSurfaceNormal.y), aSurfaceNormal.z));
-        float travel = (1.0 - pow(1.0 - t, 2.0)) * (0.065 + 0.095 * aSeed.y);
-        vec3 p = origin + normal * 0.0025 + axis * travel;
-        p.xz += tangent * (aSeed.x - 0.5) * 0.033 * t * t;
-        p.xz += radial * 0.006 * t * t;
-        p.y += (0.006 + 0.018 * aSeed.x) * t * t;
-        vAlpha = smoothstep(-0.24, -0.035, age) * (1.0 - smoothstep(0.38, 1.0, t)) * uStrength;
+        vec3 axis = normalize(origin - root + vec3(radial.x, 0.0, radial.y) * 0.001);
+        vec3 normal = normalize(vec3(aSurfaceNormal.x, max(0.12, aSurfaceNormal.y), aSurfaceNormal.z));
+        // Ease off the surface with near-zero initial velocity. Retain the
+        // petal direction, then allow a small, gradual organic drift.
+        float lift = smoothstep(0.0, 0.20, t);
+        float travel = (t * t * (2.0 - t)) * (0.045 + 0.035 * aSeed.y);
+        vec3 p = origin + normal * (0.0006 + 0.004 * lift) + axis * travel;
+        p.xz += tangent * (aSeed.x - 0.5) * 0.014 * t * t;
+        p.y += (0.002 + 0.006 * aSeed.x) * t * t;
+        float appear = mix(0.30 * smoothstep(-0.18, 0.0, age), 1.0, smoothstep(0.0, 0.14, t));
+        vAlpha = appear * (1.0 - smoothstep(0.50, 1.0, t)) * uStrength;
         vTint = aSeed.y;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
-        gl_PointSize = (5.5 + 5.5 * aSeed.x * aSeed.x) * min(uDpr, 2.0) * (1.0 - 0.42 * t);
+        gl_PointSize = (1.5 + 1.5 * aSeed.x * aSeed.x) * min(uDpr, 2.0) * (1.0 - 0.32 * t);
       }`,
     fragmentShader: /* glsl */ `
       varying float vAlpha, vTint;
@@ -559,7 +584,7 @@ function makePetalPollen(petals: LotusMesh) {
         vec3 lavender = vec3(0.72, 0.49, 1.0);
         vec3 color = mix(gold, lavender, smoothstep(0.45, 0.85, vTint));
         color = mix(color, vec3(1.0, 0.95, 0.85), core * 0.75);
-        gl_FragColor = vec4(color * 1.25, min(1.0, 0.95 * core + 0.55 * halo) * vAlpha);
+        gl_FragColor = vec4(color * 1.10, min(1.0, 0.92 * core + 0.30 * halo) * vAlpha);
       }`,
   })
   const points = new Points(geometry, material)
