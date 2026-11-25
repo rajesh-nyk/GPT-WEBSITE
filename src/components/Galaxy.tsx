@@ -142,22 +142,20 @@ vec3 hsv2rgb(vec3 c) {
   return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
 }
 
-float Star(vec2 uv, float flare, vec2 radial, float invReach) {
-#ifdef WARP
-  float along = dot(uv, radial);
-  float d = sqrt(max(dot(uv, uv) - uSquash * along * along, 0.0));
-#else
-  float d = length(uv);
-#endif
+float Star(vec2 uv, float flare, float d2, float invReach) {
+  float d = sqrt(d2);
   float m = uStarGlow / d;
-  float rays = smoothstep(0.0, 1.0, 1.0 - abs(uv.x * uv.y * 1000.0));
-  m += rays * flare * uFlareGain;
-  uv *= MAT45;
-  rays = smoothstep(0.0, 1.0, 1.0 - abs(uv.x * uv.y * 1000.0));
-  m += rays * 0.3 * flare * uFlareGain;
+  // Most stars have zero flare. Their ray terms are exactly zero.
+  if (flare > 0.0) {
+    float rays = smoothstep(0.0, 1.0, 1.0 - abs(uv.x * uv.y * 1000.0));
+    m += rays * flare * uFlareGain;
+    vec2 rotated = uv * MAT45;
+    rays = smoothstep(0.0, 1.0, 1.0 - abs(rotated.x * rotated.y * 1000.0));
+    m += rays * 0.3 * flare * uFlareGain;
+  }
   m *= smoothstep(1.0, 0.2, d * invReach);
 #ifdef WARP
-  m *= mix(1.0, smoothstep(1.0, 0.55, length(uv) * invReach), min(uWarp * 4.0, 1.0));
+  if (uWarp > 0.0) m *= mix(1.0, smoothstep(1.0, 0.55, length(uv * MAT45) * invReach), min(uWarp * 4.0, 1.0));
 #endif
   return m;
 }
@@ -213,7 +211,7 @@ vec3 StarLayer(vec2 uv, vec2 radial, vec2 repelAt, float pushCells, float spread
       base = hsv2rgb(vec3(hue, sat, val));
 #endif
 
-      float star = Star(local, flareSize, radial, invReach);
+      float star = Star(local, flareSize, d2, invReach);
       float twinkle = trisn(uTime * uSpeed + seed * 6.2831) * 0.5 + 1.0;
       twinkle = mix(1.0, twinkle, uTwinkleIntensity);
       col += star * twinkle * size * base;
