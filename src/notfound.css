@@ -1,0 +1,54 @@
+/* The 404 page (404.html). Self-contained: none of the site's JavaScript or 3D loads here. */
+  @font-face { font-family: "Bodoni"; src: url("../node_modules/@fontsource-variable/bodoni-moda/files/bodoni-moda-latin-opsz-normal.woff2") format("woff2"); font-weight: 400 900; }
+  @font-face { font-family: "Cormorant"; src: url("../node_modules/@fontsource-variable/cormorant-garamond/files/cormorant-garamond-latin-wght-normal.woff2") format("woff2"); font-weight: 300 700; }
+  @font-face { font-family: "Cormorant"; font-style: italic; src: url("../node_modules/@fontsource-variable/cormorant-garamond/files/cormorant-garamond-latin-wght-italic.woff2") format("woff2"); font-weight: 300 700; }
+  @font-face { font-family: "Odia"; src: url("../node_modules/@fontsource-variable/noto-serif-oriya/files/noto-serif-oriya-oriya-wght-normal.woff2") format("woff2"); font-weight: 400 700; }
+
+  :root { --ink: #0a0a0c; --gold-light: #f5deaa; --honey: #e9be6a; --glow: 226 178 86; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--ink); color: var(--gold-light); }
+  body {
+    min-height: 100svh; display: grid; place-items: center; overflow: hidden;
+    font-family: "Cormorant", Georgia, serif;
+    background:
+      radial-gradient(60vmax 40vmax at 50% 38%, rgb(70 40 110 / .28), transparent 70%),
+      var(--ink);
+  }
+  /* a few still stars, like the site sky */
+  .sky { position: fixed; inset: 0; pointer-events: none;
+    background-image:
+      radial-gradient(1px 1px at 12% 22%, #fff9 50%, transparent 51%),
+      radial-gradient(1px 1px at 83% 14%, #fff8 50%, transparent 51%),
+      radial-gradient(1.5px 1.5px at 72% 64%, #ffe7b0aa 50%, transparent 51%),
+      radial-gradient(1px 1px at 26% 78%, #fff7 50%, transparent 51%),
+      radial-gradient(1px 1px at 55% 9%, #fff6 50%, transparent 51%),
+      radial-gradient(1.5px 1.5px at 8% 58%, #ffe7b099 50%, transparent 51%),
+      radial-gradient(1px 1px at 92% 82%, #fff7 50%, transparent 51%),
+      radial-gradient(1px 1px at 40% 92%, #fff5 50%, transparent 51%);
+  }
+  main { position: relative; text-align: center; padding: 24px 16px; display: flex; flex-direction: column; align-items: center; }
+  .wheel { width: min(34vmin, 220px); aspect-ratio: 1; overflow: visible; animation: turn 60s linear infinite;
+    filter: drop-shadow(0 0 18px rgb(var(--glow) / .25)); }
+  .wheel circle, .wheel line { fill: none; stroke-width: .32; }
+  .track { stroke: rgb(var(--glow) / .22); }
+  .rim { stroke: var(--honey); stroke-dasharray: .72 .28; stroke-linecap: round; } /* a wheel with a gap: the path that went missing */
+  .spoke { stroke: var(--honey); opacity: .55; }
+  .spoke.lost { opacity: .08; }
+  @keyframes turn { to { transform: rotate(360deg); } }
+
+  .code { margin: 2.4rem 0 0; font: 500 .8rem/1 "Bodoni", Didot, serif; letter-spacing: .6em; padding-left: .6em; color: rgb(234 192 108 / .95); }
+  h1 { margin: 1rem 0 0; font: italic 400 clamp(2.1rem, 6vw, 3.6rem)/1.08 "Cormorant", Georgia, serif; color: var(--gold-light); }
+  .line { margin: .9rem 0 0; max-width: 30ch; font-size: clamp(1.05rem, 2.2vw, 1.25rem); line-height: 1.5; color: rgb(245 222 170 / .86); }
+  .back {
+    margin-top: 2.2rem; display: inline-flex; align-items: center; gap: .7rem;
+    padding: .95rem 1.6rem; border-radius: 999px; text-decoration: none;
+    font: 500 .78rem/1 "Bodoni", Didot, serif; letter-spacing: .28em; text-transform: uppercase;
+    color: var(--gold-light); border: 1px solid rgb(var(--glow) / .55);
+    background: rgb(var(--glow) / .06);
+    transition: background .4s, border-color .4s, box-shadow .4s;
+  }
+  .back:hover, .back:focus-visible { background: rgb(var(--glow) / .16); border-color: var(--honey); outline: none; }
+  .back span[aria-hidden] { transition: transform .4s; }
+  .back:hover span[aria-hidden] { transform: translateX(-4px); }
+  .odia { margin-top: 2.4rem; font: 500 1rem/1 "Odia", serif; letter-spacing: .08em; color: rgb(245 222 170 / .7); }
+  @media (prefers-reduced-motion: reduce) { .wheel { animation: none; } }

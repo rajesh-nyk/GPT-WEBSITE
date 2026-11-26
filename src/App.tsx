@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { SkipLink } from './components/SkipLink'
 import { Hero } from './components/hero/Hero'
 import { WorldCanvas } from './components/world/WorldCanvas'
 import { SlicedPageTwo } from './components/SlicedPageTwo'
@@ -73,6 +74,7 @@ export default function App() {
   return (
     <>
       <main className="relative">
+      <SkipLink href="#page-2" />
         <div className="blessing-journey relative">
           <BlessingSky />
           <div className="chapter-panel chapter-panel--hero">

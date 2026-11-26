@@ -7,6 +7,7 @@ import App from './App.tsx'
 import { QualityProvider } from './lib/quality'
 import { LenisProvider } from './lib/LenisProvider'
 import { Preloader } from './components/Preloader'
+import { FpsMeter } from './components/dev/FpsMeter'
 import { RoyalInteractionCursor } from './components/cursor/RoyalInteractionCursor'
 
 createRoot(document.getElementById('root')!).render(
@@ -20,6 +21,7 @@ createRoot(document.getElementById('root')!).render(
             <App />
           </Preloader>
           <RoyalInteractionCursor />
+          {(import.meta.env.DEV || new URLSearchParams(window.location.search).has('fps')) && <FpsMeter />}
         </LenisProvider>
       </QualityProvider>
     </MotionConfig>
