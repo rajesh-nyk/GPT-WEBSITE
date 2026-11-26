@@ -9,7 +9,7 @@ import {
 import { useQuality } from '../../lib/quality'
 import { useReducedMotion } from '../../lib/useReducedMotion'
 import { buildCloudNoise } from './cloudNoise'
-import { cloudLightIntensity, growth } from './cloudMath'
+import { backCloudArrival, cloudLightIntensity, footerCloudDeparture, growth } from './cloudMath'
 import { pageTwoExit } from './pageTwoExit'
 
 /**
@@ -23,6 +23,10 @@ import { pageTwoExit } from './pageTwoExit'
 // Approved and made the default 25 Nov 2026; ?clouds=0 shows page 2 without them.
 export const CLOUDS_ENABLED = typeof window === 'undefined' ||
   new URLSearchParams(window.location.search).get('clouds') !== '0'
+
+// TEST comparison: ?handoff=0 restores the previous transition timing.
+const ATMOSPHERIC_HANDOFF = typeof window === 'undefined' ||
+  new URLSearchParams(window.location.search).get('handoff') !== '0'
 
 /** Set by the Ganesha figure each frame. */
 export const cloudFade = {
@@ -415,10 +419,10 @@ export function CloudLayer({ specs, front, noise, steps, lightSteps, resScale, l
     const exit = footer ? 1 : cloudFade.exit
     composite.uniforms.uFade.value = exit
     const progress = footer ? 1 : cloudFade.progress
-    // Footer clouds morph out as soon as the scroll starts, one after another.
+    // Footer wisps linger through the shared-sky handoff; no extra layers or rising motion.
     const intro = footer ? footer.intro() : 1
     const footerLast = footer
-      ? Math.min(intro > 0 ? 1 : 0, 1 - MathUtils.smoothstep(scroll, 0.02 + (specs.length - 1) * 0.06, 0.4 + (specs.length - 1) * 0.06))
+      ? Math.min(intro > 0 ? 1 : 0, footerCloudDeparture(scroll, specs.length - 1, ATMOSPHERIC_HANDOFF && !reducedMotion))
       : 1
     const active = exit > 0 && progress > 0 && footerLast > 0
     if (!active) {
@@ -440,8 +444,8 @@ export function CloudLayer({ specs, front, noise, steps, lightSteps, resScale, l
       // Front clouds condense after the back ones.
       let grown = footer
         // Condense in after the sunrise (one after another), morph out with the scroll.
-        ? growth(intro, i, specs.length) * (1 - MathUtils.smoothstep(scroll, 0.02 + i * 0.06, 0.4 + i * 0.06))
-        : growth(progress, front ? i + specs.length : i, front ? specs.length * 2 : specs.length) * exit
+        ? growth(intro, i, specs.length) * footerCloudDeparture(scroll, i, ATMOSPHERIC_HANDOFF && !reducedMotion)
+        : growth(front ? progress : backCloudArrival(progress, ATMOSPHERIC_HANDOFF && !reducedMotion), front ? i + specs.length : i, front ? specs.length * 2 : specs.length) * exit
       let x: number
       let y = spec.pos[1] + Math.sin(tm * 0.35 + spec.seed * 2.0) * spec.bob
       let seed = spec.seed

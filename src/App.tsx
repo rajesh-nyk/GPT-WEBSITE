@@ -9,12 +9,14 @@ import { BlessingSky, pageTwoExit } from './components/world/PageTwoSky'
 const formatAxis = (value: number) => (Math.abs(value) < 0.005 ? 0 : value).toFixed(2)
 
 export default function App() {
+  const diagnostics = new URLSearchParams(window.location.search).has('diagnostics')
   const velocityOutput = useRef<HTMLOutputElement>(null)
   const scrollOutput = useRef<HTMLOutputElement>(null)
   const positionOutput = useRef<HTMLOutputElement>(null)
   const fpsOutput = useRef<HTMLOutputElement>(null)
 
   useEffect(() => {
+    if (!diagnostics) return
     // Measure real rendered document displacement, not raw wheel-event input
     // or Lenis's queued destination. No per-frame React render or layout work.
     let previousY = window.scrollY
@@ -66,7 +68,7 @@ export default function App() {
       window.clearInterval(timer)
       document.removeEventListener('visibilitychange', reset)
     }
-  }, [])
+  }, [diagnostics])
 
   return (
     <>
@@ -84,7 +86,7 @@ export default function App() {
           <DiagonalWipe from="page-2" className="page-angle--purple" holdOutgoing={pageTwoExit} />
         </section>
       </main>
-      <div className="scene-fps" role="group" aria-label="Scene diagnostics">
+      {diagnostics && <div className="scene-fps" role="group" aria-label="Scene diagnostics">
         <div className="scene-fps__group">
           <output ref={fpsOutput} id="scene-fps" aria-label="WebGL frames per second" aria-live="off">-- FPS</output>
           <span className="scene-fps__divider" aria-hidden="true" />
@@ -93,7 +95,7 @@ export default function App() {
           <output ref={scrollOutput} id="scene-scroll" aria-label="Scroll progress" aria-live="off">Scroll 0.0%</output>
         </div>
         <output ref={positionOutput} id="scene-ganesha-position" aria-label="Ganesha seat position in scene coordinates" aria-live="off">Ganesha X — Y — Z —</output>
-      </div>
+      </div>}
     </>
   )
 }

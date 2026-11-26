@@ -906,6 +906,8 @@ function MantraTicker({ language, phrase }: { language: 'or' | 'en'; phrase: str
           </div>
         ))}
       </div>
+      <span className="mantra-ticker__edge mantra-ticker__edge--top" aria-hidden="true" />
+      <span className="mantra-ticker__edge mantra-ticker__edge--bottom" aria-hidden="true" />
     </div>
   )
 }
@@ -958,10 +960,42 @@ export function PageTwoGanesha() {
             .mantra-ticker__group { display: flex; align-items: center; justify-content: space-around; min-width: 100vw; flex: none; }
             .mantra-ticker__item { flex: none; white-space: nowrap; padding-inline: clamp(14px, 2.1vw, 42px); text-shadow: 0 0 2px rgb(255 218 145 / .72), 0 0 4px rgb(255 183 74 / .32); }
             .mantra-ticker__separator { margin-inline-start: clamp(20px, 3vw, 60px); color: #d8b8ff; opacity: .7; font-size: .7em; }
+            .mantra-ticker__edge {
+              position: absolute; inset-inline: 0; height: 10px; overflow: hidden;
+              pointer-events: none; z-index: 2; opacity: .82;
+            }
+            .mantra-ticker__edge--top { top: 0; }
+            .mantra-ticker__edge--bottom { bottom: 0; }
+            .mantra-ticker__edge::before, .mantra-ticker__edge::after {
+              content: ''; position: absolute; left: 0; width: 30%; pointer-events: none;
+              transform: translate3d(-105%,0,0);
+              animation: mantra-edge-flow 8s linear infinite; animation-play-state: paused;
+            }
+            .mantra-ticker__edge::before {
+              height: 1.5px;
+              background: linear-gradient(90deg, transparent 0%, rgb(255 173 72 / .2) 18%, #ffd088 65%, #fff7da 80%, transparent 100%);
+              filter: drop-shadow(0 0 3px #ffbe69);
+            }
+            .mantra-ticker__edge::after {
+              height: 7px;
+              background: linear-gradient(90deg, transparent, rgb(255 179 79 / .14) 40%, rgb(255 210 132 / .48) 76%, transparent);
+              filter: blur(2px);
+            }
+            .mantra-ticker__edge--top::before, .mantra-ticker__edge--top::after { top: 1px; }
+            .mantra-ticker__edge--bottom::before, .mantra-ticker__edge--bottom::after { bottom: 1px; }
+            .mantra-ticker__edge--bottom::before, .mantra-ticker__edge--bottom::after { animation-delay: -4s; }
+            .mantra-ticker--en .mantra-ticker__edge::before, .mantra-ticker--en .mantra-ticker__edge::after { animation-direction: reverse; }
+            .mantra-ticker-stage[data-revealed="true"] .mantra-ticker__edge::before,
+            .mantra-ticker-stage[data-revealed="true"] .mantra-ticker__edge::after { animation-play-state: running; }
+            @keyframes mantra-edge-flow {
+              from { transform: translate3d(-105%,0,0); }
+              to { transform: translate3d(340%,0,0); }
+            }
             @keyframes mantra-ticker-scroll { from { transform: translate3d(0,0,0); } to { transform: translate3d(-50%,0,0); } }
             @media (prefers-reduced-motion: reduce) {
               .mantra-ticker { transition: none; justify-content: center; mask-image: none; }
               .mantra-ticker__track { animation: none; width: auto; }
+              .mantra-ticker__edge { display: none; }
               .mantra-ticker__group { min-width: 0; }
               .mantra-ticker__group + .mantra-ticker__group, .mantra-ticker__item + .mantra-ticker__item, .mantra-ticker__separator { display: none; }
             }

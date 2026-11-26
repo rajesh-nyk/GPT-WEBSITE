@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cloudLightIntensity, faceVeil, growth } from './cloudMath'
+import { backCloudArrival, cloudLightIntensity, faceVeil, footerCloudDeparture, growth } from './cloudMath'
 
 describe('growth', () => {
   it('starts at 0 and ends at 1', () => {
@@ -37,3 +37,22 @@ describe('faceVeil', () => {
   })
 })
 
+
+describe('atmospheric handoff', () => {
+  it('keeps the resting page endpoints unchanged', () => {
+    for (let i = 0; i < 5; i++) {
+      expect(footerCloudDeparture(0, i)).toBe(1)
+      expect(footerCloudDeparture(1, i)).toBe(0)
+    }
+    expect(backCloudArrival(0)).toBe(0)
+    expect(backCloudArrival(1)).toBe(1)
+  })
+  it('overlaps the outgoing and incoming atmosphere without a jump', () => {
+    expect(footerCloudDeparture(0.4, 0)).toBeGreaterThan(footerCloudDeparture(0.4, 0, false))
+    expect(backCloudArrival(0.4)).toBeGreaterThan(backCloudArrival(0.4, false))
+    for (let i = 1; i <= 100; i++) {
+      expect(footerCloudDeparture(i / 100, 2)).toBeLessThanOrEqual(footerCloudDeparture((i - 1) / 100, 2))
+      expect(backCloudArrival(i / 100)).toBeGreaterThanOrEqual(backCloudArrival((i - 1) / 100))
+    }
+  })
+})
