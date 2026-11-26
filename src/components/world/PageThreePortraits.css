@@ -1,5 +1,13 @@
-/* The existing Page 2 diagonal wipe remains behind this new sticky scene. */
-.portrait-chapter { height: 620svh; }
+/* Page 3 only: a mostly pure-black field with very restrained cool reflections. */
+.portrait-chapter {
+  height: 620svh;
+  --portrait-bg:
+    radial-gradient(ellipse 68% 48% at 66% 64%, rgb(24 17 38 / .62), transparent 76%),
+    radial-gradient(ellipse 54% 48% at 17% 22%, rgb(13 21 36 / .66), transparent 76%),
+    radial-gradient(ellipse 40% 35% at 76% 94%, rgb(32 24 18 / .20), transparent 78%),
+    #000;
+}
+.portrait-chapter .page-angle--portrait { background: var(--portrait-bg); }
 .portrait-stage {
   position: sticky;
   top: 0;
@@ -8,12 +16,36 @@
   overflow: hidden;
   isolation: isolate;
   opacity: 0;
-  background:
-    radial-gradient(ellipse 70% 46% at 60% 70%, rgba(60, 32, 101, .24), transparent 78%),
-    radial-gradient(ellipse 55% 55% at 24% 24%, rgba(39, 30, 76, .25), transparent 80%),
-    #090712;
+  background: var(--portrait-bg);
 }
 .portrait-stage canvas { display: block; }
+.portrait-preloader {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(14px, 2.5vh, 28px);
+  background: var(--portrait-bg);
+  color: #e9e4dc;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 650ms cubic-bezier(.22,1,.36,1), visibility 650ms;
+}
+.portrait-preloader--complete { opacity: 0; visibility: hidden; }
+.portrait-preloader__count {
+  font-family: var(--font-inscription, serif);
+  font-size: clamp(52px, 9vw, 110px);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.055em;
+  line-height: 1;
+}
+.portrait-preloader__count > span { font-size: .24em; margin-left: .18em; opacity: .6; letter-spacing: 0; }
+.portrait-preloader__rule { width: clamp(70px, 12vw, 145px); height: 1px; background: rgb(224 211 190 / .14); }
+.portrait-preloader__rule > span { display: block; height: 1px; background: #dbcaac; transform-origin: left; }
 .portrait-chapter--static { height: auto; }
 .portrait-fallback {
   position: relative;
@@ -23,6 +55,6 @@
   max-width: 1100px;
   padding: 8vh 6vw;
   margin: auto;
-  background: #090712;
+  background: #000;
 }
 .portrait-fallback img { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; display: block; }

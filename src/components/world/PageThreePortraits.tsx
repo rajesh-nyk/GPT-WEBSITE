@@ -1,5 +1,5 @@
 import { useFrame, useThree } from '@react-three/fiber'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { CanvasTexture, Color, Group, MathUtils, MeshBasicMaterial, SRGBColorSpace, TextureLoader, Vector3, type Texture } from 'three'
 import { ScrollTrigger } from '../../lib/gsap'
 import { useReducedMotion } from '../../lib/useReducedMotion'
@@ -19,11 +19,17 @@ const OFFSETS = [0, -2.7, 2.5, -2.4, 2.5, 0]
 const HEIGHTS = [0, 0.38, -0.22, 0.3, -0.2, 0]
 const ANGLES = [0, 0.13, -0.13, 0.11, -0.12, 0]
 
-function usePhoto(src: string, index: number) {
+function usePhoto(src: string, index: number, onSettled: (index: number) => void) {
   const [texture, setTexture] = useState<Texture | null>(null)
   useEffect(() => {
     let alive = true
     let loaded: Texture | undefined
+    let settled = false
+    const complete = () => {
+      if (!alive || settled) return
+      settled = true
+      onSettled(index)
+    }
     const canvas = document.createElement('canvas')
     canvas.width = 400
     canvas.height = 500
@@ -49,17 +55,20 @@ function usePhoto(src: string, index: number) {
       image.anisotropy = 4
       loaded = image
       setTexture(image)
+      complete()
     }
     loader.load(src, accept, undefined, () => {
-      if (alive) loader.load(`https://picsum.photos/seed/portrait-${index}/800/1000`, accept, undefined, () => {})
+      if (alive) loader.load(`https://picsum.photos/seed/portrait-${index}/800/1000`, accept, undefined, complete)
     })
-    return () => { alive = false; placeholder.dispose(); loaded?.dispose() }
-  }, [src, index])
+    // Slow or unavailable dummy images keep their existing placeholder.
+    const deadline = window.setTimeout(complete, 4500)
+    return () => { alive = false; window.clearTimeout(deadline); placeholder.dispose(); loaded?.dispose() }
+  }, [src, index, onSettled])
   return texture
 }
 
-function Portrait({ index, progress, narrow }: { index: number; progress: RefObject<number>; narrow: number }) {
-  const texture = usePhoto(PHOTOS[index].src, index)
+function Portrait({ index, progress, narrow, onSettled }: { index: number; progress: RefObject<number>; narrow: number; onSettled: (index: number) => void }) {
+  const texture = usePhoto(PHOTOS[index].src, index, onSettled)
   const group = useRef<Group>(null)
   const picture = useRef<MeshBasicMaterial>(null)
   const edge = useRef<MeshBasicMaterial>(null)
@@ -98,7 +107,7 @@ function Portrait({ index, progress, narrow }: { index: number; progress: RefObj
   )
 }
 
-function PhotoJourney({ progress }: { progress: RefObject<number> }) {
+function PhotoJourney({ progress, onSettled }: { progress: RefObject<number>; onSettled: (index: number) => void }) {
   const { size } = useThree()
   const narrow = Math.min(1, Math.max(0.40, size.width / Math.max(1, size.height) * 1.04))
   const cameraTarget = useMemo(() => new Vector3(), [])
@@ -126,14 +135,14 @@ function PhotoJourney({ progress }: { progress: RefObject<number> }) {
   }, -1)
   return (
     <>
-      <fog attach="fog" args={[new Color('#090712'), 16, 46]} />
+      <fog attach="fog" args={[new Color('#030306'), 16, 46]} />
       <points>
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" args={[stars, 3]} />
         </bufferGeometry>
         <pointsMaterial color="#d6c3f7" size={0.025} sizeAttenuation transparent opacity={0.38} depthWrite={false} />
       </points>
-      {PHOTOS.map((photo, index) => <Portrait key={photo.id} index={index} narrow={narrow} progress={progress} />)}
+      {PHOTOS.map((photo, index) => <Portrait key={photo.id} index={index} narrow={narrow} progress={progress} onSettled={onSettled} />)}
     </>
   )
 }
@@ -149,11 +158,41 @@ export function PageThreePortraits() {
   const stage = useRef<HTMLDivElement>(null)
   const progress = useRef(0)
   const reduced = useReducedMotion()
+  const settled = useRef(new Set<number>())
+  const onSettled = useCallback((index: number) => { settled.current.add(index) }, [])
+  const [entered, setEntered] = useState(false)
+  const [finished, setFinished] = useState(false)
+  const [percent, setPercent] = useState(0)
+
+  // A one-time chapter entrance, independent of the site's opening preloader.
+  // Real texture settlement drives the counter; never trap scrolling on a slow network.
+  useEffect(() => {
+    if (!entered || finished || reduced) return
+    let frame = 0
+    let shown = 0
+    const start = performance.now()
+    const tick = (now: number) => {
+      const elapsed = now - start
+      const available = settled.current.size / PHOTOS.length * 100
+      const target = Math.min(available, elapsed / 850 * 100)
+      shown = Math.min(target, shown + 5)
+      setPercent(Math.floor(shown))
+      if ((shown >= 100 && elapsed >= 1000) || elapsed > 5000) {
+        setFinished(true)
+        return
+      }
+      frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [entered, finished, reduced])
+
   useLayoutEffect(() => {
     const root = section.current, view = stage.current
     if (!root || !view || reduced) return
     const setEntry = (p: number) => {
       view.style.opacity = String(MathUtils.smoothstep(p, 0.18, 0.95))
+      if (p >= 0.75) setEntered(true)
     }
     const arrival = ScrollTrigger.create({
       trigger: root, start: 'top bottom', end: 'top top',
@@ -171,14 +210,18 @@ export function PageThreePortraits() {
   return (
     <section ref={section} id="page-3" data-scroll-scene="" aria-label="Page 3 — Portrait journey"
       className={`chapter-panel chapter-panel--sliced z-20 portrait-chapter${reduced ? ' portrait-chapter--static' : ''}`}>
-      <DiagonalWipe from="page-2" className="page-angle--purple" holdOutgoing={pageTwoExit} />
+      <DiagonalWipe from="page-2" className="page-angle--portrait" holdOutgoing={pageTwoExit} />
       {reduced ? <StaticPortraits /> :
         <div ref={stage} className="portrait-stage">
           <SceneCanvas label="A scroll-driven journey through six temporary photos in three-dimensional space"
             camera={{ position: [0, 0, VIEW_DISTANCE], fov: 44, near: 0.1, far: 80 }}
             gl={{ alpha: true }} effects={false} fallback={<StaticPortraits />}>
-            <PhotoJourney progress={progress} />
+            <PhotoJourney progress={progress} onSettled={onSettled} />
           </SceneCanvas>
+          <div className={`portrait-preloader${finished ? ' portrait-preloader--complete' : ''}`} aria-hidden="true">
+            <span className="portrait-preloader__count">{String(percent).padStart(2, '0')}<span>%</span></span>
+            <span className="portrait-preloader__rule"><span style={{ transform: `scaleX(${percent / 100})` }} /></span>
+          </div>
         </div>}
     </section>
   )
