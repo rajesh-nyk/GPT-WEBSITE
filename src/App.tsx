@@ -2,9 +2,9 @@ import { useEffect, useRef } from 'react'
 import { Hero } from './components/hero/Hero'
 import { WorldCanvas } from './components/world/WorldCanvas'
 import { SlicedPageTwo } from './components/SlicedPageTwo'
-import { DiagonalWipe } from './components/DiagonalWipe'
+import { PageThreePortraits } from './components/world/PageThreePortraits'
 import { ganeshaPosition } from './components/world/PageTwoGanesha'
-import { BlessingSky, pageTwoExit } from './components/world/PageTwoSky'
+import { BlessingSky } from './components/world/PageTwoSky'
 
 const formatAxis = (value: number) => (Math.abs(value) < 0.005 ? 0 : value).toFixed(2)
 
@@ -82,9 +82,7 @@ export default function App() {
           <SlicedPageTwo />
           <div className="blessing-journey-mist" aria-hidden="true" />
         </div>
-        <section id="page-3" data-scroll-scene="" aria-label="Page 3" className="chapter-panel chapter-panel--sliced z-20 h-dvh">
-          <DiagonalWipe from="page-2" className="page-angle--purple" holdOutgoing={pageTwoExit} />
-        </section>
+        <PageThreePortraits />
       </main>
       {diagnostics && <div className="scene-fps" role="group" aria-label="Scene diagnostics">
         <div className="scene-fps__group">

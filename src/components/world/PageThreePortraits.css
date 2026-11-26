@@ -1,0 +1,28 @@
+/* The existing Page 2 diagonal wipe remains behind this new sticky scene. */
+.portrait-chapter { height: 620svh; }
+.portrait-stage {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  width: 100%;
+  overflow: hidden;
+  isolation: isolate;
+  opacity: 0;
+  background:
+    radial-gradient(ellipse 70% 46% at 60% 70%, rgba(60, 32, 101, .24), transparent 78%),
+    radial-gradient(ellipse 55% 55% at 24% 24%, rgba(39, 30, 76, .25), transparent 80%),
+    #090712;
+}
+.portrait-stage canvas { display: block; }
+.portrait-chapter--static { height: auto; }
+.portrait-fallback {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: 24px;
+  max-width: 1100px;
+  padding: 8vh 6vw;
+  margin: auto;
+  background: #090712;
+}
+.portrait-fallback img { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; display: block; }
