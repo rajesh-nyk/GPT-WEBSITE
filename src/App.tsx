@@ -4,6 +4,7 @@ import { Hero } from './components/hero/Hero'
 import { WorldCanvas } from './components/world/WorldCanvas'
 import { SlicedPageTwo } from './components/SlicedPageTwo'
 import { DiagonalWipe } from './components/DiagonalWipe'
+import { PageThreeStage, SHOW_PAGE_THREE_STAGE } from './components/PageThreeStage'
 import { ganeshaPosition } from './components/world/PageTwoGanesha'
 import { BlessingSky, pageTwoExit } from './components/world/PageTwoSky'
 
@@ -73,8 +74,8 @@ export default function App() {
 
   return (
     <>
-      <main className="relative">
       <SkipLink href="#page-2" />
+      <main className="relative">
         <div className="blessing-journey relative">
           <BlessingSky />
           <div className="chapter-panel chapter-panel--hero">
@@ -84,8 +85,22 @@ export default function App() {
           <SlicedPageTwo />
           <div className="blessing-journey-mist" aria-hidden="true" />
         </div>
-        <section id="page-3" data-scroll-scene="" aria-label="Page 3" className="chapter-panel chapter-panel--sliced z-20 h-dvh">
-          <DiagonalWipe from="page-2" className="page-angle--purple" holdOutgoing={pageTwoExit} />
+        <section id="page-3" data-scroll-scene="" aria-label="Our story, framed" className="chapter-panel chapter-panel--sliced z-20 h-dvh">
+          {SHOW_PAGE_THREE_STAGE
+            ? (
+              <DiagonalWipe from="page-2" className="page-angle--black" holdOutgoing={pageTwoExit}>
+                {/* Swapped (Rajesh, 27 Nov 2026): page 3 now has the framed story, page 5 the full-screen one. */}
+                <div className="p3-wipe-body"><PageThreeStage fill={false} /></div>
+              </DiagonalWipe>
+            )
+            : <DiagonalWipe from="page-2" className="page-angle--purple" holdOutgoing={pageTwoExit} />}
+        </section>
+        {/* Page 4: plain black for now (Rajesh, 26 Nov 2026); content to come. */}
+        <section id="page-4" data-scroll-scene="" aria-label="Closing blessing" className="relative z-20 grid h-dvh place-items-center bg-black px-6 text-center">
+          <div>
+            <p className="font-[var(--font-odia)] text-[clamp(1.4rem,3vw,2.4rem)] text-[color:var(--color-chapter-ivory)]">ଶୁଭ ବିବାହ</p>
+            <p className="mt-5 font-[var(--font-inscription)] text-[clamp(.8rem,1.2vw,1.05rem)] font-semibold uppercase tracking-[.22em] text-[color:var(--color-chapter-champagne)]">Rajesh &amp; Chinmayee · 27 Jan · 26 Feb · 3 Mar · 2027</p>
+          </div>
         </section>
       </main>
       {diagnostics && <div className="scene-fps" role="group" aria-label="Scene diagnostics">

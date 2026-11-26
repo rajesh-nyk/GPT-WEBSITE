@@ -160,7 +160,11 @@ const FRAGMENT = /* glsl */ `
                  + 0.13 * texture(uNoise, duvw * 4.3 + 0.71).g;
     float hf = clamp(q.y * 0.5 + 0.5, 0.0, 1.0);
     float erode = mix(detail, 1.0 - detail, clamp(hf * 3.0, 0.0, 1.0));
-    d = remap(d, erode * 0.45, 1.0, 0.0, 1.0);
+    #ifdef PEARL_CLOUDS
+      d = remap(d, erode * 0.54, 1.0, 0.0, 1.0);
+    #else
+      d = remap(d, erode * 0.45, 1.0, 0.0, 1.0);
+    #endif
     // Build-up: while it condenses only the densest cores show, then it fills outward.
     d = remap(d, (1.0 - uGrowth) * 0.85, 1.0, 0.0, 1.0);
     return clamp(d, 0.0, 1.0) * 6.0 * uDensity;
@@ -216,6 +220,17 @@ const FRAGMENT = /* glsl */ `
     vec3 moon = vec3(0.62, 0.56, 0.86) * 0.45;
     vec3 skyTop = vec3(0.26, 0.20, 0.40);
     vec3 skyBottom = vec3(0.09, 0.065, 0.15);
+    #ifdef PEARL_CLOUDS
+      gold = vec3(1.0, 0.97, 0.91) * 1.72;
+      moon = vec3(0.65, 0.79, 1.0) * 0.68;
+      skyTop = vec3(0.47, 0.55, 0.69);
+      skyBottom = vec3(0.12, 0.17, 0.26);
+    #elif defined(LOTUS_CLOUDS)
+      gold = vec3(1.0, 0.76, 0.48) * 1.6;
+      moon = vec3(0.63, 0.58, 0.81) * 0.45;
+      skyTop = vec3(0.27, 0.22, 0.36);
+      skyBottom = vec3(0.09, 0.075, 0.135);
+    #endif
 
     vec3 col = vec3(0.0);
     float trans = 1.0;
@@ -316,6 +331,7 @@ type LayerProps = {
   lightSteps: number
   resScale: number
   light: Vector2
+  palette?: 'pearl' | 'lotus'
   face: Vector3
   /** Ganesha's centre: clouds light him. Omitted where there is no figure to light. */
   model?: Vector3
@@ -327,7 +343,7 @@ type LayerProps = {
   }
 }
 
-export function CloudLayer({ specs, front, noise, steps, lightSteps, resScale, light, face, model, footer }: LayerProps) {
+export function CloudLayer({ specs, front, noise, steps, lightSteps, resScale, light, palette, face, model, footer }: LayerProps) {
   const reducedMotion = useReducedMotion()
   const gl = useThree((s) => s.gl) as WebGLRenderer
   const invalidate = useThree((s) => s.invalidate)
@@ -348,7 +364,12 @@ export function CloudLayer({ specs, front, noise, steps, lightSteps, resScale, l
     const mesh = new Mesh(new BoxGeometry(2, 2, 2), new ShaderMaterial({
       vertexShader: VERTEX,
       fragmentShader: FRAGMENT,
-      defines: { STEPS: steps, LIGHT_STEPS: lightSteps },
+      defines: {
+        STEPS: steps,
+        LIGHT_STEPS: lightSteps,
+        ...(palette === 'pearl' ? { PEARL_CLOUDS: 1 } : {}),
+        ...(palette === 'lotus' ? { LOTUS_CLOUDS: 1 } : {}),
+      },
       uniforms: {
         uNoise: { value: noise },
         uTime: { value: 0 },
@@ -370,7 +391,7 @@ export function CloudLayer({ specs, front, noise, steps, lightSteps, resScale, l
     mesh.scale.set(...spec.half)
     mesh.frustumCulled = false
     return mesh
-  }), [specs, steps, lightSteps, noise, front])
+  }), [specs, steps, lightSteps, noise, front, palette])
 
   useEffect(() => {
     cloudScene.add(...meshes)
@@ -494,7 +515,24 @@ export function CloudLayer({ specs, front, noise, steps, lightSteps, resScale, l
         l.color.copy(COOL).lerp(WARM, Math.min(1, Math.max(0, (y + 1.5) / 3)))
       }
     })
+    // While page 3 rises over this canvas, only the part still on screen is worth ray-marching.
+    // Fully covered = skip the whole cloud pass (the last frame is hidden anyway); partly
+    // covered = scissor the pass to the visible top slice. Cuts the 2 → 3 transition cost
+    // roughly in half and to zero at the end (Rajesh: 60 → 5 FPS, 26 Nov 2026).
+    let visibleShare = 1
+    if (rect && rect.height > 0) {
+      visibleShare = MathUtils.clamp((edgeY - rect.top) / rect.height, 0, 1)
+      if (visibleShare <= 0) return
+    }
     const [fresh, histA, histB] = targets
+    if (visibleShare < 1) {
+      const th = fresh.height
+      const rows = Math.min(th, Math.ceil(visibleShare * th) + 4)
+      fresh.scissorTest = true
+      fresh.scissor.set(0, th - rows, fresh.width, rows)
+    } else if (fresh.scissorTest) {
+      fresh.scissorTest = false
+    }
     const read = h.index === 0 ? histA : histB
     const write = h.index === 0 ? histB : histA
     const prev = gl.getRenderTarget()
@@ -555,7 +593,7 @@ export function PageTwoClouds({ light, face, model }: { light: Vector2; face: Ve
   useEffect(() => () => noise.dispose(), [noise])
   const back = portrait ? BACK_PORTRAIT : BACK_LANDSCAPE
   const front = portrait ? FRONT_PORTRAIT : FRONT_LANDSCAPE
-  const shared = { noise, steps, lightSteps, resScale, light, face, model }
+  const shared = { noise, steps, lightSteps, resScale, light, face, model, palette: 'lotus' as const }
   return (
     <>
       {/* The back clouds are distant and soft: a lower resolution costs no visible detail. */}

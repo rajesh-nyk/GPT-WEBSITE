@@ -18,8 +18,14 @@ const GANESHA = 'ganesha-figure'
 const SEAT = 'ganesha-seat'
 const GLINTS = 'ganesha-ornament-glints'
 const ENTRY_ANGLE = MathUtils.degToRad(-12)
-const EXIT_ANGLE = MathUtils.degToRad(28)
+// Rajesh, 26–27 Nov 2026 (P1/P2 = how far that page has scrolled past the top of the screen):
+// -45° until P1 20, turning to face us (0°) by P2 0, then 0° after.
+// Scroll position in screens: page 1's progress (0–1) + page 2's departure (0–1).
+const START_ANGLE = MathUtils.degToRad(-45)
+const TURN_FROM = 0.2 // P1 20
+const TURN_TO = 1.0 // P2 0
 const EXIT_ROTATION_RESPONSE = 16
+const MANTRA_TRANSITION_MS = 1200
 const FIGURE_GLOW = 0.31
 const PETAL_GLOW = 0.30
 // With the clouds (default; off with ?clouds=0): a gentler glow and light on him, so he sits in the same tonal range
@@ -32,6 +38,9 @@ const AURA_ENABLED = typeof window === 'undefined' ||
 // and rises up from below the bottom edge instead of a 12px nudge.
 const MANTRA_RISE = typeof window !== 'undefined' &&
   new URLSearchParams(window.location.search).has('mantra-rise')
+/** The scrolling mantra text was removed from page 2 (Rajesh, 26 Nov 2026). ?mantra=1 shows it again. */
+const SHOW_MANTRA_TICKER = !MANTRA_RISE && typeof window !== 'undefined' &&
+  new URLSearchParams(window.location.search).get('mantra') === '1'
 const AURA_SETTINGS = { aura: 0.22, rays: 0.36, lotus: 0.21 } as const
 // Optional comparison: shine=0 removes the warm highlight within the shafts.
 const RAY_SHINE = typeof window !== 'undefined' &&
@@ -178,9 +187,10 @@ const CONDENSE_GLSL = /* glsl */ `
   // How far this point is from being formed: >0 still wisp, <0 formed.
   float condenseEdge() {
     vec3 p = vCondensePos;
-    float n = 0.5 * condenseNoise(p * 60.0) + 0.3 * condenseNoise(p * 140.0) + 0.2 * condenseNoise(p * 320.0);
+    // Finer grain, smaller swing: the figure thins into dust, not into large holes (26 Nov 2026).
+    float n = 0.2 * condenseNoise(p * 60.0) + 0.35 * condenseNoise(p * 160.0) + 0.45 * condenseNoise(p * 420.0);
     float reach = length((p - vec3(0.0, 0.15, 0.0)) * vec3(1.0, 1.25, 1.0)) / 0.26;
-    return uCondense * 1.5 - (reach + (n - 0.5) * 0.7);
+    return uCondense * 1.5 - (reach + (n - 0.5) * 0.42);
   }
 `
 function applyCondense(shader: { uniforms: Record<string, { value: unknown }>; vertexShader: string; fragmentShader: string }) {
@@ -622,8 +632,7 @@ function LotusFigure({ frame, invocation }: {
   const idleTime = useRef(0)
   const mistTime = useRef(0)
   const painted = useRef(false)
-  const tickerReveal = useRef(0)
-  const tickerArmed = useRef(false)
+  const tickerReveal = useRef({ value: 0, from: 0, target: 0, startedAt: 0 })
   const haloPoint = useRef(new Vector2()).current
   const facePoint = useRef(new Vector3()).current
   const modelPoint = useRef(new Vector3()).current
@@ -695,7 +704,8 @@ function LotusFigure({ frame, invocation }: {
     // independent damping absorbs wheel/trackpad step changes in either direction.
     // Rotate the entire seated sculpture to preserve the figure/lotus joins.
     const departureProgress = reducedMotion ? 0 : MathUtils.clamp(exit.current?.progress ?? 0, 0, 1)
-    const targetYaw = EXIT_ANGLE * departureProgress
+    const easeInOut = (x: number) => (1 - Math.cos(Math.PI * MathUtils.clamp(x, 0, 1))) / 2
+    const targetYaw = reducedMotion ? 0 : MathUtils.lerp(START_ANGLE, 0, easeInOut((progress + departureProgress - TURN_FROM) / (TURN_TO - TURN_FROM)))
     if (model.current) {
       const yaw = model.current.rotation.y
       const nextYaw = reducedMotion || Math.abs(targetYaw - yaw) < 0.0001
@@ -737,17 +747,13 @@ function LotusFigure({ frame, invocation }: {
     cloudFade.value = fade
     cloudFade.progress = progress
     cloudFade.exit = exitFade
-    // He condenses as page 2 arrives and thins away on exit.
-    // Keep the paced condensation during arrival, but finish it with scroll as
-    // page 2 reaches center so the fully revealed figure and ticker stay synchronized.
+    // He condenses as page 2 arrives and thins away on exit. Restored 27 Nov 2026 to the
+    // slow morph he approved on 25 Nov ("looks good, keep it"): forms over arrival 0.08–0.96,
+    // capped at 0.22/s (≈6.5 s, never rushed by a fast scroll), dissolves on exit at 0.8/s.
     if (CLOUDS_ENABLED && !reducedMotion) {
       const target = MathUtils.smoothstep(progress, 0.08, 0.96) * MathUtils.smoothstep(exitFade, 0.0, 1.0)
       const step = (target > condense.value ? 0.22 : 0.8) * dt
       condense.value += MathUtils.clamp(target - condense.value, -step, step)
-      // Catch up smoothly over the last part of the arrival, not on an independent timer.
-      const centeredReveal = MathUtils.smootherstep(progress, 0.76, 0.995)
-        * MathUtils.smoothstep(exitFade, 0, 1)
-      condense.value = Math.max(condense.value, Math.min(target, centeredReveal))
       if (Math.abs(condense.value - target) > 0.0001) invalidate()
     } else condense.value = 1
     // Pollen follows the actual lotus transform and the same opening cycle.
@@ -774,17 +780,19 @@ function LotusFigure({ frame, invocation }: {
           el.style.setProperty('--sw', (1 - MathUtils.smoothstep(spreadFade, 0.25, 1)).toFixed(3))
         }
       } else {
-        // First entrance still begins at centered arrival. Once shown, the
-        // same scroll envelope scrubs the exit and any reversal without a CSS timer.
-        const envelope = MathUtils.smootherstep(progress, 0.88, 0.995)
-          * (1 - MathUtils.smootherstep(departureProgress, 0, 0.13))
-        if (progress >= 0.995 && departureProgress < 0.035) tickerArmed.current = true
-        if (envelope <= 0.001) tickerArmed.current = false
-        const target = reducedMotion ? 1 : tickerArmed.current ? envelope : 0
-        const current = tickerReveal.current
-        const damped = reducedMotion ? target : MathUtils.damp(current, target, target > current ? 6 : 24, dt)
-        const next = Math.abs(damped - target) < 0.002 ? target : damped
-        tickerReveal.current = next
+        // Scroll triggers a fixed-time entrance or exit.
+        const target = reducedMotion || (progress >= 0.72 && departureProgress < 0.12) ? 1 : 0
+        const now = performance.now()
+        const motion = tickerReveal.current
+        if (target !== motion.target) {
+          motion.from = motion.value
+          motion.target = target
+          motion.startedAt = now
+        }
+        const elapsed = reducedMotion ? 1 : Math.min(1, (now - motion.startedAt) / MANTRA_TRANSITION_MS)
+        const eased = (1 - Math.cos(Math.PI * elapsed)) / 2
+        const next = MathUtils.lerp(motion.from, target, eased)
+        motion.value = next
         if (next !== target) invalidate()
         const key = next.toFixed(3)
         if (el.style.getPropertyValue('--mantra-ticker-reveal') !== key) {
@@ -882,7 +890,7 @@ function LotusFigure({ frame, invocation }: {
       <hemisphereLight args={['#fff0d8', '#503042', 1.1 * CLOUD_TONE]} />
       <directionalLight position={[-3, 4, 5]} intensity={2.1 * CLOUD_TONE} color="#ffe6cc" />
       <directionalLight position={[3, 2, -3]} intensity={1.4} color="#ffbc80" />
-      <group ref={model} scale={scale} position={[0, -LOTUS_PIVOT.y * scale, 0]}>
+      <group ref={model} rotation-y={reducedMotion ? 0 : START_ANGLE} scale={scale} position={[0, -LOTUS_PIVOT.y * scale, 0]}>
         <Model src="lotus-ganesha.glb" customize={prepareLotus} castShadow={false} receiveShadow={false}>
           <Prewarm models={[]} />
         </Model>
@@ -915,6 +923,7 @@ function MantraTicker({ language, phrase }: { language: 'or' | 'en'; phrase: str
 export function PageTwoGanesha() {
   const frame = useRef<HTMLDivElement>(null)
   const invocation = useRef<HTMLElement>(null)
+
   return (
     <div ref={frame} className="ganesha-shot pointer-events-none absolute inset-0">
       <SceneCanvas
@@ -939,7 +948,7 @@ export function PageTwoGanesha() {
           </span></div>
         </footer>
       )}
-      {!MANTRA_RISE && (
+      {SHOW_MANTRA_TICKER && (
         <section ref={invocation} className="mantra-ticker-stage" data-revealed="false" aria-label="Ganesha invocation">
           <style>{`
             .mantra-ticker-stage { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
@@ -952,17 +961,17 @@ export function PageTwoGanesha() {
               -webkit-mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
               mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
             }
-            .mantra-ticker--or { top: max(1.5dvh, env(safe-area-inset-top, 0px)); transform: translateY(calc(-110% * (1 - var(--mantra-ticker-reveal, 0)))); color: #fff1cc; font: 650 clamp(1.25rem, 2.65vw, 2.2rem)/1.35 var(--font-odia); }
-            .mantra-ticker--en { bottom: max(1.5dvh, env(safe-area-inset-bottom, 0px)); transform: translateY(calc(110% * (1 - var(--mantra-ticker-reveal, 0)))); color: #ffe8bd; font: 650 clamp(.83rem, 1.25vw, 1.12rem)/1.45 var(--font-inscription); letter-spacing: .09em; text-transform: uppercase; }
+            .mantra-ticker--or { top: max(1.5dvh, env(safe-area-inset-top, 0px)); transform: translateY(calc(-72% * (1 - var(--mantra-ticker-reveal, 0)))); color: var(--color-chapter-ivory); font: 400 clamp(1.25rem, 2.65vw, 2.2rem)/1.35 var(--font-odia); }
+            .mantra-ticker--en { bottom: max(1.5dvh, env(safe-area-inset-bottom, 0px)); transform: translateY(calc(72% * (1 - var(--mantra-ticker-reveal, 0)))); color: var(--color-chapter-champagne); font: 650 clamp(.83rem, 1.25vw, 1.12rem)/1.45 var(--font-inscription); letter-spacing: .09em; text-transform: uppercase; }
             .mantra-ticker-stage[data-revealed="true"] .mantra-ticker { visibility: visible; }
-            .mantra-ticker__track { display: flex; width: max-content; flex: none; animation: mantra-ticker-scroll 26s linear infinite; animation-play-state: paused; }
+            .mantra-ticker__track { display: flex; width: max-content; flex: none; animation: mantra-ticker-scroll 38s linear infinite; animation-play-state: paused; }
             .mantra-ticker-stage[data-revealed="true"] .mantra-ticker__track { animation-play-state: running; }
             .mantra-ticker__group { display: flex; align-items: center; justify-content: space-around; min-width: 100vw; flex: none; }
             .mantra-ticker__item { flex: none; white-space: nowrap; padding-inline: clamp(14px, 2.1vw, 42px); text-shadow: 0 0 2px rgb(255 218 145 / .72), 0 0 4px rgb(255 183 74 / .32); }
             .mantra-ticker__separator { margin-inline-start: clamp(20px, 3vw, 60px); color: #d8b8ff; opacity: .7; font-size: .7em; }
             .mantra-ticker__edge {
-              position: absolute; inset-inline: 0; height: 10px; overflow: hidden;
-              pointer-events: none; z-index: 2; opacity: .82;
+              position: absolute; inset-inline: 0; height: 4px; overflow: hidden;
+              pointer-events: none; z-index: 2; opacity: .5;
             }
             .mantra-ticker__edge--top { top: 0; }
             .mantra-ticker__edge--bottom { bottom: 0; }
@@ -972,14 +981,14 @@ export function PageTwoGanesha() {
               animation: mantra-edge-flow 8s linear infinite; animation-play-state: paused;
             }
             .mantra-ticker__edge::before {
-              height: 1.5px;
+              height: .3px;
               background: linear-gradient(90deg, transparent 0%, rgb(255 173 72 / .2) 18%, #ffd088 65%, #fff7da 80%, transparent 100%);
-              filter: drop-shadow(0 0 3px #ffbe69);
+              filter: drop-shadow(0 0 .4px #ffbe69);
             }
             .mantra-ticker__edge::after {
-              height: 7px;
+              height: 1px;
               background: linear-gradient(90deg, transparent, rgb(255 179 79 / .14) 40%, rgb(255 210 132 / .48) 76%, transparent);
-              filter: blur(2px);
+              filter: blur(.3px);
             }
             .mantra-ticker__edge--top::before, .mantra-ticker__edge--top::after { top: 1px; }
             .mantra-ticker__edge--bottom::before, .mantra-ticker__edge--bottom::after { bottom: 1px; }

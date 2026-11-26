@@ -119,6 +119,7 @@ function overrideFromURL(): Tier | null {
 const ultraFromURL = () => new URLSearchParams(window.location.search).get('quality') === 'ultra'
 
 type QualityContextValue = QualitySettings & {
+  ultra: boolean
   /** false until detection finishes (the preloader waits on this). */
   ready: boolean
   /** Tier detected at startup. Fixed for the session — picks which model files load. */
@@ -186,9 +187,10 @@ export function QualityProvider({ children }: { children: ReactNode }) {
   const reducedMotion = useReducedMotion()
   useFrameBudgetGuard(downgrade, ready && !reducedMotion)
 
+  const ultra = ultraFromURL()
   const value = useMemo<QualityContextValue>(
-    () => ({ ...(ultraFromURL() ? ULTRA_PRESET : PRESETS[tier]), ready, assetTier, gpu, downgrade }),
-    [tier, ready, assetTier, gpu, downgrade],
+    () => ({ ...(ultra ? ULTRA_PRESET : PRESETS[tier]), ultra, ready, assetTier, gpu, downgrade }),
+    [ultra, tier, ready, assetTier, gpu, downgrade],
   )
 
   return <QualityContext.Provider value={value}>{children}</QualityContext.Provider>

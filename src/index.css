@@ -26,6 +26,8 @@
    don't write raw hex or cubic-bezier() again.
    Colours with transparency: rgb(var(--rgb-…) / 0.5). 3D scene colours live in the TSX. */
 :root {
+  --color-chapter-ivory: #fff1d9;
+  --color-chapter-champagne: #f1d0a5;
   /* Solid colours (ink, oxblood, sindoor, gold, gold-light and marigold are in @theme) */
   --color-parchment: #f3dcaa; /* body + label text on dark */
   --color-ivory: #fbefcf; /* brightest gold highlight */
@@ -1866,12 +1868,7 @@ html body .loader[data-static-loader] {
 #scene-fps[data-rate="fair"] { color: #ffcc77; }
 #scene-fps[data-rate="low"] { color: #ff8585; }
 
-/* Vertical touch gestures are handled by paced Lenis; horizontal and pinch stay native. */
-html.cinematic-scroll { touch-action: pan-x pinch-zoom; }
-
-/* Full-screen chapter panels, each with its own local artwork. The actual
-   chapter offset is driven by the existing spring navigator. No per-element
-   translations or background pinning are used during the vertical slide. */
+/* Full-screen chapter panels, each with its own artwork. */
 .chapter-panel { position: relative; isolation: isolate; overflow: hidden; width: 100%; }
 .blessing-journey { isolation: isolate; }
 .blessing-journey > .chapter-panel { isolation: auto; }
@@ -1931,6 +1928,9 @@ html.cinematic-scroll { touch-action: pan-x pinch-zoom; }
   clip-path: polygon(0 calc(var(--overhang) + var(--edge-shift)), 100% calc(var(--overhang) + var(--edge-shift) - var(--lead)), 100% 100%, 0 100%);
   pointer-events: none;
 }
+/* Page 3 stage is AMOLED black: the wipe panel matches it so no purple band
+   shows between the diagonal edge and the stage while page 3 loads. */
+.page-angle--black { background: #000; }
 .page-angle--purple {
   background: linear-gradient(145deg, var(--color-purple-night), var(--color-purple-shadow) 54%, var(--color-purple-glow));
 }
@@ -2094,3 +2094,5 @@ html.cinematic-scroll { touch-action: pan-x pinch-zoom; }
 @media (prefers-reduced-motion: reduce) {
   .mw-in { transform: none; }
 }
+
+

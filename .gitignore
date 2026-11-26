@@ -23,3 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 .superpowers/
+
+# Website review artefacts (screenshots, reports)
+.jury/

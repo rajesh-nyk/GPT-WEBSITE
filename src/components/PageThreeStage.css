@@ -1,0 +1,500 @@
+.p3-stage {
+  --arrival: 1;
+  --veil: 0;
+  --sky-lotus: 91 59 79;
+  --sky-indigo: 50 43 79;
+  --sky-base: #000;
+  position: relative;
+  isolation: isolate;
+  height: 100%;
+  color: var(--color-chapter-ivory);
+}
+.p3-stage[data-fill] {
+  --sky-lotus: 22 22 22;
+  --sky-indigo: 14 14 14;
+}
+/* Page 3 (framed story): rich black gradient backdrop (Rajesh, 27 Nov 2026) instead of the
+   purple night tint. Soft charcoal light high in the middle, falling off to pure black. */
+.p3-stage:not([data-fill]) {
+  --sky-lotus: 30 30 34;
+  --sky-indigo: 24 24 28;
+}
+.p3-stage:not([data-fill])::before {
+  background:
+    radial-gradient(ellipse 70% 55% at 55% 40%, #1c1c21 0%, #111114 38%, transparent 72%),
+    radial-gradient(ellipse 120% 80% at 50% 110%, #0d0d10 0%, transparent 60%),
+    linear-gradient(180deg, #07070a 0%, #020203 55%, #000 100%);
+}
+/* The stage backdrop is its own layer, behind the content. */
+.p3-stage::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 54% 42% at 56% 65%, rgb(var(--sky-lotus) / .25), transparent),
+    radial-gradient(ellipse 66% 52% at 51% 39%, rgb(var(--sky-indigo) / .42), transparent),
+    var(--sky-base);
+}
+
+.p3-atmosphere {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  mask-image: radial-gradient(ellipse 68% 68% at 54% 51%, black 45%, transparent 100%);
+}
+.p3-atmosphere::before,
+.p3-atmosphere::after {
+  content: '';
+  position: absolute;
+  inset: -27%;
+  opacity: .65;
+}
+.p3-atmosphere::before {
+  background: radial-gradient(ellipse 38% 18% at 47% 58%, rgb(var(--sky-lotus) / .36), transparent);
+}
+.p3-atmosphere::after {
+  background: radial-gradient(ellipse 37% 31% at 49% 41%, rgb(var(--sky-indigo) / .62), transparent);
+}
+.p3-stage:not([data-reduced]) .p3-atmosphere::before {
+  animation: p3-sky-drift 12s ease-in-out -3s infinite alternate;
+}
+.p3-stage:not([data-reduced]) .p3-atmosphere::after {
+  animation: p3-sky-drift 16s ease-in-out -7s infinite alternate-reverse;
+}
+@keyframes p3-sky-drift {
+  from { transform: translate(-13%, 9%) rotate(-9deg); opacity: .58; }
+  to { transform: translate(12%, -8%) rotate(11deg) scale(1.12); opacity: 1; }
+}
+
+.p3-footer-clouds {
+  position: absolute;
+  inset: auto 0 0;
+  height: 36%;
+  opacity: var(--arrival);
+  mask-image: linear-gradient(transparent, #000 18%, #000 75%, transparent);
+  pointer-events: none;
+}
+.p3-footer-clouds[data-fullscreen] {
+  height: 100%;
+  opacity: calc(var(--arrival) * .1);
+  mask-image: linear-gradient(#000 85%, transparent);
+}
+.p3-puff-names {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  overflow: hidden;
+  opacity: var(--arrival);
+  pointer-events: none;
+}
+.p3-puff-name {
+  display: block;
+  padding: 3px 6px;
+  border: 1px solid #7694b8;
+  border-radius: 4px;
+  background: #07121f;
+  color: #e5f1ff;
+  font: 600 11px/1.2 system-ui, sans-serif;
+  white-space: nowrap;
+}
+
+/* The first portion floats over the outgoing night sky. Everything above the seam
+   vanishes at page two's resting position. */
+.p3-handoff {
+  position: absolute;
+  inset: -46% 0 0;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: var(--veil);
+}
+.p3-handoff::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: calc(1 - var(--arrival));
+  background: radial-gradient(ellipse 72% 30% at 55% 32%, rgb(var(--sky-indigo) / .36), transparent);
+}
+.p3-pollen {
+  position: absolute;
+  inset: 0;
+  transform: translateY(calc((1 - var(--arrival)) * 5vh));
+}
+.p3-pollen + .p3-pollen {
+  transform: translateY(calc((1 - var(--arrival)) * 18vh));
+}
+.p3-stage:not([data-reduced]) .p3-pollen {
+  animation: p3-pollen-drift 16s ease-in-out infinite alternate;
+}
+.p3-stage:not([data-reduced]) .p3-pollen + .p3-pollen {
+  animation-duration: 12s;
+  animation-direction: alternate-reverse;
+}
+@keyframes p3-pollen-drift {
+  from { translate: -9px 12px; }
+  to { translate: 12px -16px; }
+}
+.p3-pollen i {
+  position: absolute;
+  width: var(--grain);
+  height: var(--grain);
+  border-radius: 65% 35% 60% 40%;
+  background: #f2b779;
+  box-shadow: 0 0 5px #d69345;
+}
+.p3-pollen + .p3-pollen i {
+  background: #ffdbaf;
+  box-shadow: 0 0 7px 1px #c76776;
+}
+
+.p3-layout {
+  position: relative;
+  margin: auto;
+  width: min(86%, 1440px);
+  height: 100%;
+  padding: clamp(26px, 8dvh, 90px) 0;
+  box-sizing: border-box;
+  display: grid;
+  grid-template: 1fr auto auto 1fr / minmax(0, .93fr) minmax(0, 1.15fr);
+  column-gap: 4%;
+  align-items: center;
+}
+.p3-caption {
+  grid-area: 2 / 1;
+  position: relative;
+  isolation: isolate;
+}
+.p3-stage:not([data-reduced]) .p3-caption {
+  opacity: var(--story-reveal, 0);
+  translate: 0 calc((1 - var(--story-reveal, 0)) * 14px);
+}
+.p3-ornament {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: clamp(45px, 7vw, 110px);
+  min-height: 6px;
+  margin: 0 0 clamp(16px, 3dvh, 34px) 3px;
+}
+.p3-ornament::before {
+  content: '';
+  height: 1px;
+  width: calc(100% - 6px);
+  scale: var(--story-reveal, 1) 1;
+  transform-origin: left;
+  background: linear-gradient(90deg, #916634, #ffdb9e);
+}
+.p3-ornament i {
+  position: absolute;
+  left: calc((100% - 6px) * var(--story-reveal, 1));
+  width: 6px;
+  height: 6px;
+  rotate: 45deg;
+  background: #fed597;
+}
+.p3-caption h2 {
+  font: 450 clamp(40px, min(5.9vw, 9.5dvh), 108px)/1.04 var(--font-inscription);
+  letter-spacing: -.055em;
+  text-wrap: balance;
+  margin: 0;
+}
+.p3-caption h2 em {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 500;
+}
+.p3-caption :is(h2 em, p) { color: var(--color-chapter-champagne); }
+.p3-caption p {
+  margin: clamp(12px, 2.8dvh, 26px) 0 0;
+  max-width: 34ch;
+  font: italic 500 clamp(17px, 1.65vw, 27px)/1.3 var(--font-display);
+}
+.p3-lettering { animation: p3-letter-in .45s ease-out both; }
+@keyframes p3-letter-in {
+  from { opacity: 0; transform: translateY(5px); }
+}
+
+.p3-gallery {
+  grid-area: 1 / 2 / -1;
+  align-self: stretch;
+  position: relative;
+  container-type: size;
+  display: grid;
+  place-items: center;
+  touch-action: pan-y pinch-zoom;
+  opacity: var(--arrival);
+  transform: translateY(calc((1 - var(--arrival)) * 6dvh)) scale(calc(.95 + var(--arrival) * .05));
+}
+.p3-print {
+  --portrait-radius: clamp(18px, 3vw, 44px);
+  --glass-rim: 2px;
+  position: absolute;
+  width: min(88cqw, 70cqh);
+  aspect-ratio: 3 / 4;
+  opacity: 0;
+  transition: opacity .55s ease;
+}
+.p3-print[data-wide] { width: min(96cqw, 167cqh); aspect-ratio: 16 / 9; }
+/* Wide screens show the landscape picture (4:3); phones keep the portrait frame. */
+@media (min-aspect-ratio: 1/1) {
+  .p3-print[data-land] { width: min(96cqw, 133cqh); aspect-ratio: 4 / 3; }
+}
+.p3-print[data-selected] { opacity: 1; z-index: 1; }
+.p3-print::before {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--glass-rim));
+  pointer-events: none;
+  border-radius: calc(var(--portrait-radius) + var(--glass-rim));
+  backdrop-filter: blur(9px) saturate(145%);
+  background: linear-gradient(180deg,
+    rgb(255 243 218 / .36), rgb(224 193 163 / .12) 48%, rgb(217 137 121 / .26));
+  box-shadow: inset 0 1px 4px rgb(255 247 224 / .33),
+    0 -3px 12px rgb(255 224 175 / .21), 0 8px 24px rgb(217 137 121 / .17);
+}
+.p3-print::after {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--glass-rim));
+  border: 1px solid transparent;
+  border-radius: calc(var(--portrait-radius) + var(--glass-rim));
+  background:
+    linear-gradient(var(--gold-angle, 135deg), transparent 22%, rgb(255 246 223 / .32) 45%, transparent 63%) border-box,
+    linear-gradient(180deg, rgb(255 238 204 / .91), rgb(227 189 157 / .26) 53%, rgb(217 137 121 / .57)) border-box;
+  mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 1;
+}
+.p3-photo-window { position: absolute; inset: 0; overflow: hidden; border-radius: var(--portrait-radius); }
+.p3-stage:not([data-reduced]) .p3-print {
+  transition: opacity .55s ease;
+}
+.p3-stage:not([data-reduced], [data-fill]) .p3-print {
+  transform: perspective(1000px) rotateX(var(--portrait-pitch, 0deg)) rotateY(var(--portrait-yaw, 0deg));
+  transition: opacity .55s ease, transform .42s ease-out;
+}
+.p3-stage:not([data-reduced], [data-fill]) .p3-print[data-selected] {
+  animation: p3-portrait-breathe 6s ease-in-out infinite;
+}
+@keyframes p3-portrait-breathe {
+  0%, 100% { scale: 1; }
+  46% { scale: 1.03; }
+}
+.p3-print img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.p3-glint {
+  position: absolute;
+  top: 56%;
+  left: 24%;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: radial-gradient(circle, white, #ffe2ac 18%, transparent 70%);
+  pointer-events: none;
+  animation: p3-watch 1.4s .35s both;
+}
+@keyframes p3-watch {
+  0%, 100% { opacity: 0; }
+  20%, 72% { opacity: .95; }
+  45%, 56% { opacity: 0; }
+  0%, 45% { left: 24%; top: 56%; }
+  56%, 100% { left: 70%; top: 52%; }
+}
+
+.p3-thumbs {
+  --thumb-width: clamp(38px, 4.1vw, 68px);
+  --thumb-gap: 0px;
+  grid-area: 3 / 1;
+  position: relative;
+  width: min(100%, calc(5.45 * var(--thumb-width) + 5 * var(--thumb-gap)));
+  display: flex;
+  overflow: auto hidden;
+  overscroll-behavior-x: contain;
+  overflow-anchor: none;
+  scrollbar-width: none;
+  border-block: 1px solid transparent;
+  background:
+    linear-gradient(90deg, transparent, #d3eaff 40%, #fff 58%, transparent) left -75px top / 75px 1px no-repeat border-box,
+    linear-gradient(90deg, transparent, #fff 42%, #d3eaff 60%, transparent) right -75px bottom / 75px 1px no-repeat border-box;
+  mask-image: linear-gradient(90deg, transparent, rgb(0 0 0 / .45) 4%, black 10%, black 90%, rgb(0 0 0 / .45) 96%, transparent);
+  margin-top: clamp(20px, 5dvh, 60px);
+  opacity: var(--arrival);
+  transform-origin: center;
+  transition: scale .32s cubic-bezier(.22, 1, .36, 1);
+}
+.p3-stage:not([data-reduced]) .p3-thumbs {
+  animation: p3-strip-energy 3s linear infinite;
+}
+@keyframes p3-strip-energy {
+  from { background-position: left -75px top, right -75px bottom; }
+  to { background-position: right -75px top, left -75px bottom; }
+}
+@media (hover: hover) and (pointer: fine) {
+  .p3-thumbs:hover { scale: 1.24; }
+}
+.p3-thumb-set {
+  display: flex;
+  box-sizing: border-box;
+  flex: none;
+  gap: var(--thumb-gap);
+  padding-right: var(--thumb-gap);
+}
+.p3-thumbs button {
+  position: relative;
+  width: var(--thumb-width);
+  min-height: 44px;
+  padding: 4px 0 7px;
+  cursor: pointer;
+}
+.p3-thumbs img {
+  width: 100%;
+  aspect-ratio: 1.22;
+  object-fit: cover;
+  opacity: .58;
+  transition: opacity .2s;
+}
+.p3-thumbs button:is(:hover, :focus-visible, [aria-current="true"]) img { opacity: 1; }
+.p3-thumbs button[aria-current="true"]::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 2px;
+  background: var(--color-chapter-champagne);
+}
+.p3-thumbs button:focus-visible { outline: 2px solid #ffeac7; outline-offset: -2px; }
+
+@media (max-aspect-ratio: 1/1) {
+  .p3-stage::before {
+    background:
+      radial-gradient(ellipse 52% 31% at 61% 55%, rgb(var(--sky-lotus) / .24), transparent),
+      radial-gradient(ellipse 68% 46% at 50% 34%, rgb(var(--sky-indigo) / .46), transparent),
+      var(--sky-base);
+  }
+  .p3-layout {
+    width: min(90%, 620px);
+    padding: max(18px, env(safe-area-inset-top)) 0 max(16px, env(safe-area-inset-bottom));
+    grid-template: minmax(0, 1fr) auto auto / 1fr;
+    justify-items: center;
+    gap: clamp(10px, 2dvh, 26px);
+  }
+  .p3-gallery { grid-area: 1 / 1; width: 100%; }
+  .p3-caption { grid-area: 2 / 1; text-align: center; }
+  .p3-ornament { display: none; }
+  .p3-caption h2 { font-size: clamp(32px, min(10vw, 6dvh), 64px); }
+  .p3-caption h2 em { display: inline; }
+  .p3-caption p { margin: 6px auto 0; font-size: clamp(17px, 3.8vw, 23px); }
+  .p3-thumbs { --thumb-width: clamp(40px, 12vw, 62px); grid-area: 3 / 1; margin: 0; }
+}
+.p3-stage[data-reduced] .p3-handoff { display: none; }
+.p3-stage[data-reduced] :is(.p3-lettering, .p3-glint) { animation: none; }
+.p3-stage[data-reduced] .p3-glint { display: none; }
+.p3-stage[data-reduced] .p3-print { transition: none; }
+.p3-stage[data-reduced] .p3-thumbs { transition: none; }
+
+/* ?fill=1 experiment: the photo covers the whole screen; caption and thumbnails sit over it. */
+.p3-stage[data-fill] .p3-layout {
+  position: absolute; inset: 0; width: 100%; height: 100%; margin: 0;
+  padding: 0 clamp(22px, 6vw, 96px) clamp(22px, 7dvh, 80px);
+  grid-template: minmax(0, 1fr) auto auto / minmax(0, 1fr);
+  align-items: end; justify-items: start;
+}
+.p3-stage[data-fill] .p3-gallery {
+  position: absolute; inset: 0; grid-area: auto; width: auto; z-index: 0;
+  transform: none;
+}
+/* No dark shading behind the caption text (Rajesh, 26 Nov 2026): photos stay clean. */
+.p3-stage[data-fill] .p3-print,
+.p3-stage[data-fill] .p3-print[data-wide],
+.p3-stage[data-fill] .p3-print[data-land] {
+  inset: 0; width: 100%; height: 100%; aspect-ratio: auto; --portrait-radius: 0px;
+}
+.p3-stage[data-fill] .p3-print::before,
+.p3-stage[data-fill] .p3-print::after { display: none; }
+.p3-stage[data-fill] .p3-caption,
+.p3-stage[data-fill] .p3-thumbs { position: relative; z-index: 3; grid-column: 1; }
+.p3-stage[data-fill] .p3-caption { grid-row: 2; }
+.p3-stage[data-fill] .p3-thumbs { grid-row: 3; }
+.p3-stage[data-fill] .p3-ornament { display: none; }
+@media (max-aspect-ratio: 1/1) {
+  .p3-stage[data-fill] .p3-layout { width: 100%; justify-items: center; }
+  .p3-stage[data-fill] .p3-gallery { width: auto; }
+}
+
+/* Page 3 sits inside the diagonal wipe panel, which starts one overhang above the section. */
+.p3-wipe-body { position: absolute; inset: var(--overhang) 0 0; pointer-events: auto; }
+
+.p3-arrival-title {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  overflow: clip;
+  visibility: hidden;
+  pointer-events: none;
+  translate: 0 var(--title-lift, 0px);
+  color: var(--color-chapter-champagne);
+  font: 400 clamp(17px, 6.35vw, 96px)/1.05 var(--font-inscription);
+  letter-spacing: -.035em;
+  text-align: center;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.p3-stage[data-phase='title'] .p3-arrival-title { visibility: visible; }
+.p3-arrival-title > * { grid-area: 1 / 1; }
+.p3-arrival-main {
+  margin: 0;
+  font: inherit;
+  letter-spacing: inherit;
+}
+.p3-arrival-echo--top {
+  clip-path: inset(0 0 40%);
+}
+.p3-arrival-echo--bottom {
+  clip-path: inset(40% 0 0);
+}
+
+/* The photo arrives through the ink canvas; the real gallery shows once the ink is done. */
+.p3-ink { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; pointer-events: none; opacity: 0; }
+.p3-stage[data-fill][data-phase='morph'] .p3-ink { opacity: 1; }
+.p3-stage[data-fill][data-phase]:not([data-phase='done']) .p3-gallery { opacity: 0; }
+.p3-stage[data-fill]:is([data-phase='done'], [data-ink-controls]) :is(.p3-caption, .p3-thumbs) {
+  opacity: 1;
+}
+.p3-stage[data-fill]:is(:not([data-phase='done'], [data-ink-controls]), [data-ink-closing]) :is(.p3-caption, .p3-thumbs) {
+  visibility: hidden;
+  opacity: 0;
+  transition: none;
+}
+
+/* Page 3 (framed): the clouds and their labels stay hidden while the page comes in and fade
+   in (ease in-out) only once it has fully arrived (Rajesh, 27 Nov 2026). */
+.p3-stage:not([data-fill]) :is(.p3-footer-clouds, .p3-puff-names) {
+  transition: opacity .9s cubic-bezier(.65, 0, .35, 1), visibility 0s;
+}
+.p3-stage:not([data-fill]):not([data-arrived]) :is(.p3-footer-clouds, .p3-puff-names) {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .25s cubic-bezier(.65, 0, .35, 1), visibility 0s .25s;
+}
+
+/* Page 3 (framed): the whole photo frame, border and glow included, starts at 70% height
+   (his ask: 0 and 50 looked too much; 65 "perfect", trying 70) and stretches back to full (from its middle, ease in-out via --arrival) as page 2 hands
+   over to page 3 (Rajesh, 27 Nov 2026). Done on the frame's column (the photo's own `scale`
+   is taken by its breathing animation); the frame sits in the column's middle. */
+.p3-stage:not([data-fill], [data-reduced]) .p3-gallery {
+  opacity: 1;
+  transform: translateY(calc((1 - var(--arrival)) * 6dvh)) scale(1, calc(.7 + var(--arrival-frame, 1) * .3));
+  transform-origin: 50% 50%;
+}
+
+/* Page 3 (framed): the big photo opens the full-screen viewer (PhotoViewer). */
+.p3-stage:not([data-fill]) .p3-print[data-selected] { cursor: zoom-in; }
+.p3-stage:not([data-fill]) .p3-print[data-selected]:focus-visible { outline: 2px solid #ffeac7; outline-offset: 6px; }

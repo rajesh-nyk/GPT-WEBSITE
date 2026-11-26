@@ -82,6 +82,12 @@ export function LenisProvider({ children, paced = false }: { children: ReactNode
       // shapes it exactly like wheel scrolling instead of fighting native momentum.
       syncTouch: true,
       virtualScroll: (data) => {
+        // Page 3's filmstrip slides its photos with the wheel while hovered: never jump a page.
+        if (data.event.type === 'wheel' && data.event.target instanceof Element
+          && data.event.target.closest('[data-lenis-prevent-wheel]')) {
+          if (data.event.cancelable) data.event.preventDefault()
+          return false
+        }
         if (paced) {
           if (data.event.type === 'wheel' && (data.event as WheelEvent).ctrlKey) return true
           if (data.event.type === 'touchstart') { resetGesture(); return false }

@@ -1,0 +1,138 @@
+/* Full-screen photo viewer (PhotoViewer.tsx). Fades and settles in with an ease in-out. */
+/* Registered so the strip's height can animate when hovered (Safari 16.4+, Chrome, Firefox). */
+@property --pv-strip-h {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 80px;
+}
+.pv {
+  --pv-ease: cubic-bezier(.65, 0, .35, 1);
+  --pv-strip-base: clamp(64px, 11vh, 104px);
+  --pv-strip-h: var(--pv-strip-base);
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgb(0 0 0 / var(--pv-bg, 1));
+  opacity: 0;
+  transition: opacity .5s var(--pv-ease), --pv-strip-h .45s var(--pv-ease);
+}
+/* Genie minimize: the canvas draws the squeezing photo; everything else steps aside. */
+.pv-genie { position: absolute; inset: 0; z-index: 3; width: 100%; height: 100%; pointer-events: none; }
+.pv[data-minimizing] { pointer-events: none; }
+.pv[data-minimizing]::after,
+.pv[data-minimizing] :is(.pv-stage, .pv-strip, .pv-close) { opacity: 0; transition: opacity .18s var(--pv-ease); }
+/* Hovering the strip makes it bigger (ease in-out), and back when the pointer leaves (his ask, 27 Nov 2026). */
+.pv:has(.pv-strip:hover) { --pv-strip-h: calc(var(--pv-strip-base) * 1.45); }
+.pv[data-shown] { opacity: 1; }
+
+.pv-stage {
+  position: absolute;
+  inset: 0;
+  scale: .96;
+  transition: scale .6s var(--pv-ease);
+}
+.pv[data-shown] .pv-stage { scale: 1; }
+.pv-photo {
+  position: absolute;
+  inset: 0;
+  display: block;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .45s var(--pv-ease);
+}
+.pv-photo[data-selected] { opacity: 1; }
+/* The photo covers the whole screen (his ask); each photo's focus point keeps faces in view.
+   No filters on their faces. */
+.pv-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: auto;
+}
+/* A soft shade under the strip so the thumbnails read over any photo. */
+.pv::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: calc(var(--pv-strip-h) + 64px);
+  background: linear-gradient(transparent, rgb(0 0 0 / .55));
+  pointer-events: none;
+}
+.pv-strip { z-index: 1; }
+
+.pv-close {
+  position: absolute;
+  top: clamp(12px, 2.5vh, 28px);
+  right: clamp(12px, 2.5vw, 32px);
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgb(255 234 199 / .45);
+  border-radius: 50%;
+  background: rgb(0 0 0 / .45);
+  padding: 0;
+  color: #ffeac7;
+  cursor: pointer;
+  transition: background .25s var(--pv-ease), transform .25s var(--pv-ease);
+}
+.pv-close:hover { background: rgb(255 234 199 / .14); transform: scale(1.06); }
+.pv-close svg { display: block; }
+.pv-close:focus-visible { outline: 2px solid #ffeac7; outline-offset: 3px; }
+
+/* Endless strip, edge to edge along the bottom. */
+.pv-strip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 12px;
+  height: var(--pv-strip-h);
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+  translate: 0 24px;
+  transition: translate .6s var(--pv-ease);
+}
+.pv[data-shown] .pv-strip { translate: 0 0; }
+.pv-strip::-webkit-scrollbar { display: none; }
+/* Explicit sizes (no %-of-stretched-height or aspect-ratio), so Safari never collapses them. */
+.pv-strip-set { display: flex; flex: none; height: var(--pv-strip-h); gap: 0; padding-right: 0; }
+.pv-strip button {
+  position: relative;
+  flex: none;
+  height: var(--pv-strip-h);
+  width: calc(var(--pv-strip-h) * 4 / 3);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  overflow: hidden;
+  background: #111;
+  cursor: pointer;
+}
+.pv-strip img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: .5;
+  transition: opacity .3s var(--pv-ease);
+}
+.pv-strip button:is(:hover, :focus-visible, [aria-current="true"]) img { opacity: 1; }
+.pv-strip button[aria-current="true"]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px solid #ffeac7;
+  border-radius: inherit;
+}
+.pv-strip button:focus-visible { outline: 2px solid #ffeac7; outline-offset: -4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pv, .pv-stage, .pv-photo, .pv-strip { transition: none; }
+  .pv-stage { scale: 1; }
+  .pv-strip { translate: 0 0; }
+}
